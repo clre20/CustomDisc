@@ -1,0 +1,63 @@
+name: CustomDisc
+description: '${project.description}'
+prefix: C-Disc
+version: '${project.version}'
+website: '${project.url}'
+
+main: clre20.customDisc.CustomDisc
+api-version: '1.21'
+load: POSTWORLD
+softdepend: [ Geyser-Spigot, floodgate ]
+
+authors: [ Clre20 ]
+
+commands:
+  cdisc:
+    description: CustomDisc 主指令
+    usage: /cdisc help
+    aliases: [ c-disc, cd ]
+
+permissions:
+  customdisc.*:
+    description: CustomDisc 全部權限
+    default: op
+    children:
+      customdisc.use: true
+      customdisc.help: true
+      customdisc.list: true
+      customdisc.create: true
+      customdisc.edit: true
+      customdisc.delete: true
+      customdisc.give: true
+      customdisc.give.others: true
+      customdisc.reload: true
+  customdisc.use:
+    description: 使用 /cd 查看版本與檢查更新
+    default: true
+  customdisc.help:
+    description: 使用 /cd help
+    default: true
+  customdisc.list:
+    description: 使用 /cd list
+    default: op
+  customdisc.create:
+    description: 建立自訂唱片／號角
+    default: op
+  customdisc.edit:
+    description: 編輯自訂唱片／號角
+    default: op
+  customdisc.delete:
+    description: 刪除自訂唱片／號角
+    default: op
+  customdisc.give:
+    description: 給自己自訂唱片／號角
+    default: op
+  customdisc.give.others:
+    description: 給其他玩家自訂唱片／號角
+    default: op
+  customdisc.reload:
+    description: 重新載入插件
+    default: op
+  customdisc.horn.bypasscooldown:
+    description: 吹號角時無視冷卻
+    default: false

@@ -1,0 +1,49 @@
+# ================================================
+#  CustomDisc（C-Disc）設定檔
+#  https://github.com/clre20/CustomDisc
+# ================================================
+
+# 請勿修改：插件更新時會用它自動補上新設定
+config-version: 1
+
+# 所有訊息的開頭（支援 & 顏色碼與 &#RRGGBB）
+prefix: "&8[&bC-Disc&8] &r"
+
+# 版本檢查：啟動時在後台檢查一次（輸入 /cd 時一律會檢查）
+update-checker:
+  enabled: true
+
+# Java 版資源包（插件自己打包，與 server.properties 的資源包分開）
+resource-pack:
+  # 內建 HTTP 伺服器綁定的位址與端口
+  host: 0.0.0.0
+  port: 52011
+  # 玩家下載用的網址，外部必須連得到（結尾不要加 /）
+  public-url: "http://pg.yucl.qzz.io:52011"
+  # 強制下載，拒絕就踢出
+  required: true
+  prompt: "&6本伺服器使用自訂唱片音樂資源包"
+  kick-message: "&c必須接受唱片資源包才能進入伺服器"
+
+# 基岩版（Geyser）：自動產生基岩版資源包，玩家登入時送出
+bedrock:
+  enabled: true
+
+playback:
+  # 原生模式：重啟後把自訂唱片／號角註冊成原版唱片／樂器
+  # 關閉後全部改由插件播放（資料包仍會保留，避免已存在的物品出錯）
+  native-mode: true
+
+chat-input:
+  # 等待聊天室輸入的秒數
+  timeout: 60
+  # 輸入這個字會取消並返回上一頁
+  cancel-word: "取消"
+
+# 新建唱片／號角時的預設值
+defaults:
+  disc-volume: 100
+  disc-range: 64
+  horn-volume: 100
+  horn-range: 256
+  horn-cooldown: 7
