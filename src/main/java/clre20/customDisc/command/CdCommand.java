@@ -1,10 +1,10 @@
 package clre20.customDisc.command;
 
 import clre20.customDisc.CustomDisc;
-import clre20.customDisc.config.Msg;
+import clre20.customDisc.config.Messages;
 import clre20.customDisc.data.CustomSound;
 import clre20.customDisc.data.SoundType;
-import clre20.customDisc.update.UpdateChecker;
+import clre20.customDisc.update.UpdateNotifier;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -21,10 +21,12 @@ import java.util.Map;
 /** /cdisc、/c-disc、/cd 指令。 */
 public final class CdCommand implements TabExecutor {
 
+    private static final int MAX_GIVE = 2304;
     private static final List<String> SUBS = List.of(
-            "help", "list", "create", "edit", "del", "delete", "give", "reload");
+            "help", "version", "list", "create", "edit", "del", "delete", "give", "reload");
     private static final Map<String, String> PERMS = Map.of(
             "help", "customdisc.help",
+            "version", UpdateNotifier.PERMISSION,
             "list", "customdisc.list",
             "create", "customdisc.create",
             "edit", "customdisc.edit",
@@ -39,24 +41,25 @@ public final class CdCommand implements TabExecutor {
         this.plugin = plugin;
     }
 
+    private Messages msg() {
+        return plugin.messages();
+    }
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (args.length == 0) {
-            version(sender);
-            return true;
-        }
-        String sub = args[0].toLowerCase(Locale.ROOT);
+        String sub = args.length == 0 ? "help" : args[0].toLowerCase(Locale.ROOT);
         String perm = PERMS.get(sub);
         if (perm == null) {
-            Msg.send(sender, "&c未知的指令，輸入 &f/" + label + " help &c查看說明");
+            msg().send(sender, "command.unknown", "label", label);
             return true;
         }
         if (!sender.hasPermission(perm)) {
-            Msg.send(sender, "&c你沒有權限使用這個指令");
+            msg().send(sender, "common.no-permission");
             return true;
         }
         switch (sub) {
             case "help" -> help(sender, label);
+            case "version" -> plugin.updateNotifier().showTo(sender);
             case "list" -> list(sender, args);
             case "create" -> create(sender, label, args);
             case "edit" -> edit(sender, label, args);
@@ -71,40 +74,23 @@ public final class CdCommand implements TabExecutor {
 
     // ------------------------------------------------------------ 子指令
 
-    private void version(CommandSender sender) {
-        if (!sender.hasPermission("customdisc.use")) {
-            Msg.send(sender, "&c你沒有權限使用這個指令");
-            return;
-        }
-        String current = plugin.getPluginMeta().getVersion();
-        Msg.send(sender, "&fCustomDisc（C-Disc）&7版本 &e" + current);
-        Msg.send(sender, "&7正在檢查更新…");
-        plugin.updates().check().thenAccept(r -> Bukkit.getScheduler().runTask(plugin, () -> {
-            if (r.latest() == null) {
-                Msg.send(sender, "&7檢查更新：" + r.error());
-            } else if (r.newer()) {
-                Msg.send(sender, "&a有新版本 &e" + r.latest() + "&a！下載：&f" + UpdateChecker.PAGE);
-            } else {
-                Msg.send(sender, "&a目前已是最新版本");
-            }
-        }));
-    }
-
     private void help(CommandSender sender, String label) {
-        Msg.send(sender, "&f指令說明");
-        line(sender, "customdisc.use", "/" + label, "查看版本並檢查更新");
-        line(sender, "customdisc.list", "/" + label + " list [disc|horn]", "唱片／號角列表");
-        line(sender, "customdisc.create", "/" + label + " create <disc|horn> <name>", "建立");
-        line(sender, "customdisc.edit", "/" + label + " edit <disc|horn> <name>", "編輯（已發出的物品會自動更新）");
-        line(sender, "customdisc.delete", "/" + label + " delete <disc|horn> <name>", "刪除（別名 del）");
-        line(sender, "customdisc.give", "/" + label + " give <disc|horn> <name> [玩家] [數量]", "給予");
-        line(sender, "customdisc.reload", "/" + label + " reload", "重新載入設定、資料與音檔");
-        Msg.raw(sender, "&7name 只能用 a-z、0-9、_；音檔放在 plugins/CustomDisc/sounds/");
+        String p = msg().get("help.arg-player");
+        String a = msg().get("help.arg-amount");
+        msg().send(sender, "help.header");
+        line(sender, UpdateNotifier.PERMISSION, "/" + label + " version", "help.version");
+        line(sender, "customdisc.list", "/" + label + " list [disc|horn]", "help.list");
+        line(sender, "customdisc.create", "/" + label + " create <disc|horn> <name>", "help.create");
+        line(sender, "customdisc.edit", "/" + label + " edit <disc|horn> <name>", "help.edit");
+        line(sender, "customdisc.delete", "/" + label + " delete <disc|horn> <name>", "help.delete");
+        line(sender, "customdisc.give", "/" + label + " give <disc|horn> <name> [" + p + "] [" + a + "]", "help.give");
+        line(sender, "customdisc.reload", "/" + label + " reload", "help.reload");
+        msg().raw(sender, "help.footer");
     }
 
-    private void line(CommandSender sender, String perm, String usage, String desc) {
+    private void line(CommandSender sender, String perm, String usage, String descKey) {
         if (sender.hasPermission(perm)) {
-            Msg.raw(sender, " &e" + usage + " &7- " + desc);
+            msg().raw(sender, "help.line", "usage", usage, "desc", msg().get(descKey));
         }
     }
 
@@ -113,7 +99,7 @@ public final class CdCommand implements TabExecutor {
         if (args.length >= 2) {
             SoundType t = SoundType.fromId(args[1]);
             if (t == null) {
-                Msg.send(sender, "&c類型只能是 disc 或 horn");
+                msg().send(sender, "common.invalid-type");
                 return;
             }
             types.add(t);
@@ -123,56 +109,57 @@ public final class CdCommand implements TabExecutor {
         }
         for (SoundType t : types) {
             Collection<CustomSound> all = plugin.store().all(t);
-            Msg.send(sender, "&f" + t.displayName() + "（" + all.size() + "）");
+            msg().send(sender, "list.header", "type", t.displayName(), "count", all.size());
             if (all.isEmpty()) {
-                Msg.raw(sender, " &8（沒有）");
+                sender.sendMessage(msg().component("common.none"));
             }
             for (CustomSound s : all) {
-                String mode = plugin.datapack().isNative(s) ? "&a原生" : "&e插件播放";
-                Msg.raw(sender, " &7- &f" + s.name() + " &7" + "「&r" + s.displayName() + "&7」 " + mode);
+                String mode = msg().get(plugin.datapack().isNative(s) ? "common.mode-native" : "common.mode-plugin");
+                msg().raw(sender, "list.entry", "name", s.name(), "display", s.displayName(), "mode", mode);
             }
         }
     }
 
     private CustomSound target(CommandSender sender, String label, String[] args, String sub) {
         if (args.length < 3) {
-            Msg.send(sender, "&c用法：&f/" + label + " " + sub + " <disc|horn> <name>");
+            msg().send(sender, "command.usage-target", "label", label, "sub", sub);
             return null;
         }
         SoundType type = SoundType.fromId(args[1]);
         if (type == null) {
-            Msg.send(sender, "&c類型只能是 disc 或 horn");
+            msg().send(sender, "common.invalid-type");
             return null;
         }
         String name = args[2].toLowerCase(Locale.ROOT);
         CustomSound s = plugin.store().get(type, name);
         if (s == null) {
-            Msg.send(sender, "&c找不到" + type.displayName() + " " + name);
+            msg().send(sender, "common.not-found", "type", type.displayName(), "name", name);
         }
         return s;
     }
 
     private void create(CommandSender sender, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            Msg.send(sender, "&c只有玩家可以使用介面建立");
+            msg().send(sender, "common.player-only");
             return;
         }
         if (args.length < 3) {
-            Msg.send(sender, "&c用法：&f/" + label + " create <disc|horn> <name>");
+            msg().send(sender, "command.usage-target", "label", label, "sub", "create");
             return;
         }
         SoundType type = SoundType.fromId(args[1]);
         if (type == null) {
-            Msg.send(sender, "&c類型只能是 disc 或 horn");
+            msg().send(sender, "common.invalid-type");
             return;
         }
         String name = args[2].toLowerCase(Locale.ROOT);
         if (!CustomSound.NAME_PATTERN.matcher(name).matches()) {
-            Msg.send(sender, "&cname 只能用 a-z、0-9、_，最多 32 個字（顯示名稱可以在介面裡另外設定中文）");
+            msg().send(sender, "command.invalid-name");
             return;
         }
         if (plugin.store().exists(type, name)) {
-            Msg.send(sender, "&c" + type.displayName() + " " + name + " 已經存在，要修改請用 &f/" + label + " edit " + type.id() + " " + name);
+            msg().send(sender, "command.already-exists", "type", type.displayName(), "name", name,
+                    "label", label, "id", type.id());
             return;
         }
         plugin.editor().startCreate(player, type, name);
@@ -180,7 +167,7 @@ public final class CdCommand implements TabExecutor {
 
     private void edit(CommandSender sender, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            Msg.send(sender, "&c只有玩家可以使用介面編輯");
+            msg().send(sender, "common.player-only");
             return;
         }
         CustomSound s = target(sender, label, args, "edit");
@@ -196,7 +183,7 @@ public final class CdCommand implements TabExecutor {
         }
         plugin.store().delete(s.type(), s.name());
         plugin.applyChanges();
-        Msg.send(sender, "&a已刪除" + s.type().displayName() + " &f" + s.name() + "&a，已發出去的物品會變成「已失效」");
+        msg().send(sender, "command.delete-done", "type", s.type().displayName(), "name", s.name());
     }
 
     private void give(CommandSender sender, String label, String[] args) {
@@ -208,17 +195,17 @@ public final class CdCommand implements TabExecutor {
         if (args.length >= 4) {
             to = Bukkit.getPlayerExact(args[3]);
             if (to == null) {
-                Msg.send(sender, "&c找不到線上玩家 " + args[3]);
+                msg().send(sender, "command.give-player-not-found", "player", args[3]);
                 return;
             }
             if (to != sender && !sender.hasPermission("customdisc.give.others")) {
-                Msg.send(sender, "&c你沒有權限給其他玩家");
+                msg().send(sender, "command.give-no-permission-others");
                 return;
             }
         } else if (sender instanceof Player p) {
             to = p;
         } else {
-            Msg.send(sender, "&c後台使用時請指定玩家：&f/" + label + " give " + args[1] + " " + args[2] + " <玩家> [數量]");
+            msg().send(sender, "command.give-console-needs-player", "label", label, "id", s.type().id(), "name", s.name());
             return;
         }
         int amount = 1;
@@ -226,12 +213,12 @@ public final class CdCommand implements TabExecutor {
             try {
                 amount = Integer.parseInt(args[4]);
             } catch (NumberFormatException e) {
-                Msg.send(sender, "&c數量必須是數字");
+                msg().send(sender, "command.give-amount-not-number");
                 return;
             }
         }
-        if (amount < 1 || amount > 2304) {
-            Msg.send(sender, "&c數量必須在 1 到 2304 之間");
+        if (amount < 1 || amount > MAX_GIVE) {
+            msg().send(sender, "command.give-amount-range", "max", MAX_GIVE);
             return;
         }
         int left = amount;
@@ -244,19 +231,24 @@ public final class CdCommand implements TabExecutor {
                 dropped += rest.getAmount();
             }
         }
-        Msg.send(sender, "&a已給 &f" + to.getName() + " &a" + amount + " 個" + s.type().displayName() + " &f" + s.name()
-                + (dropped > 0 ? "&7（背包滿了，" + dropped + " 個掉在地上）" : ""));
+        String done = msg().get("command.give-done", "player", to.getName(), "amount", amount,
+                "type", s.type().displayName(), "name", s.name());
+        if (dropped > 0) {
+            done += msg().get("command.give-dropped", "dropped", dropped);
+        }
+        sender.sendMessage(clre20.customDisc.util.Text.color(plugin.config().prefix() + done));
         if (to != sender) {
-            Msg.send(to, "&a你收到了 " + amount + " 個" + s.type().displayName() + "「&r" + s.displayName() + "&a」");
+            msg().send(to, "command.give-received", "amount", amount, "type", s.type().displayName(),
+                    "display", s.displayName());
         }
     }
 
     private void reload(CommandSender sender) {
-        Msg.send(sender, "&7重新載入中…");
+        msg().send(sender, "command.reload-start");
         plugin.reload().thenAccept(changed -> Bukkit.getScheduler().runTask(plugin, () -> {
-            Msg.send(sender, "&a重新載入完成" + (changed ? "，資源包已更新並推送給線上玩家" : ""));
+            msg().send(sender, changed ? "command.reload-done-pack" : "command.reload-done");
             if (plugin.datapackChanged()) {
-                Msg.send(sender, "&7有唱片／號角的設定要重啟伺服器後才會改用原生模式");
+                msg().send(sender, "command.reload-restart-hint");
             }
         }));
     }
@@ -274,7 +266,8 @@ public final class CdCommand implements TabExecutor {
             }
         } else {
             String sub = args[0].toLowerCase(Locale.ROOT);
-            if (!PERMS.containsKey(sub) || !sender.hasPermission(PERMS.get(sub)) || sub.equals("help") || sub.equals("reload")) {
+            if (!PERMS.containsKey(sub) || !sender.hasPermission(PERMS.get(sub))
+                    || sub.equals("help") || sub.equals("reload") || sub.equals("version")) {
                 return out;
             }
             if (args.length == 2) {

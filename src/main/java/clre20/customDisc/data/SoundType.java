@@ -4,23 +4,22 @@ import java.util.Locale;
 
 /** 自訂物品的類型：唱片或號角。 */
 public enum SoundType {
-    DISC("disc", "唱片"),
-    HORN("horn", "號角");
+    DISC("disc"),
+    HORN("horn");
 
     private final String id;
-    private final String displayName;
 
-    SoundType(String id, String displayName) {
+    SoundType(String id) {
         this.id = id;
-        this.displayName = displayName;
     }
 
     public String id() {
         return id;
     }
 
+    /** 顯示名稱（messages.yml 的 common.type-disc / type-horn）。 */
     public String displayName() {
-        return displayName;
+        return clre20.customDisc.CustomDisc.get().messages().get("common.type-" + id);
     }
 
     public static SoundType fromId(String id) {

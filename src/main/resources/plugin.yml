@@ -7,7 +7,7 @@ website: '${project.url}'
 main: clre20.customDisc.CustomDisc
 api-version: '1.21'
 load: POSTWORLD
-softdepend: [ Geyser-Spigot, floodgate ]
+softdepend: [ Geyser-Spigot, floodgate, HttpHub ]
 
 authors: [ Clre20 ]
 
@@ -22,7 +22,7 @@ permissions:
     description: CustomDisc 全部權限
     default: op
     children:
-      customdisc.use: true
+      customdisc.version: true
       customdisc.help: true
       customdisc.list: true
       customdisc.create: true
@@ -31,9 +31,10 @@ permissions:
       customdisc.give: true
       customdisc.give.others: true
       customdisc.reload: true
-  customdisc.use:
-    description: 使用 /cd 查看版本與檢查更新
-    default: true
+      customdisc.horn.bypasscooldown: false
+  customdisc.version:
+    description: 使用 /cd version 檢查更新，並在有新版時登入收到提醒
+    default: op
   customdisc.help:
     description: 使用 /cd help
     default: true

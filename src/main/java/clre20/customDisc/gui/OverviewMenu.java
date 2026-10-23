@@ -6,6 +6,7 @@ import clre20.customDisc.data.SoundType;
 import clre20.customDisc.pack.SoundLibrary;
 import clre20.customDisc.util.Vanilla;
 import org.bukkit.Material;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.MusicInstrumentMeta;
 
@@ -22,8 +23,8 @@ import java.util.List;
 final class OverviewMenu extends EditorMenu {
 
     OverviewMenu(EditSession session) {
-        super(session, 3, (session.creating() ? "確認建立" : "編輯")
-                + session.draft().type().displayName() + "：" + session.draft().name(), 6);
+        super(session, 3, session.creating() ? "gui.overview.title-create" : "gui.overview.title-edit", 6,
+                "type", session.draft().type().displayName(), "name", session.draft().name());
     }
 
     @Override
@@ -31,6 +32,7 @@ final class OverviewMenu extends EditorMenu {
         CustomDisc plugin = CustomDisc.get();
         CustomSound d = session.draft();
         boolean disc = d.type() == SoundType.DISC;
+        List<String> clickEdit = join(one(""), one(text("gui.click-edit")));
 
         // 外觀
         ItemStack look;
@@ -46,76 +48,80 @@ final class OverviewMenu extends EditorMenu {
             }
             lookName = Vanilla.hornName(d.appearance());
         }
-        set(10, icon(look, "&f外觀：&e" + lookName, lines("", "&e點擊修改")), p -> editor().appearance(p));
+        set(10, icon(look, text("gui.overview.appearance-name", "name", lookName), clickEdit), p -> editor().appearance(p));
 
         // 名稱
-        set(11, icon(Material.NAME_TAG, "&f名稱", lines("&r" + d.displayName(), "", "&e點擊修改（聊天室輸入）")),
-                p -> editor().promptName(p));
+        set(11, icon(Material.NAME_TAG, text("gui.overview.name-name"),
+                lines("gui.overview.name-lore", "display", d.displayName())), p -> editor().promptName(p));
 
         // 描述
-        List<String> lore = lines();
+        List<String> lore = new java.util.ArrayList<>();
         if (d.lore().isEmpty()) {
-            lore.add("&8（無）");
+            lore.add(text("common.none"));
         } else {
             for (String line : d.lore()) {
-                lore.add("&r" + line);
+                lore.add(text("gui.overview.lore-line", "line", line));
             }
         }
-        lore.add("");
-        lore.add("&e點擊修改（聊天室輸入）");
-        set(12, icon(Material.WRITABLE_BOOK, "&f描述", lore), p -> editor().promptLore(p));
+        lore.addAll(lines("gui.overview.lore-footer"));
+        set(12, icon(Material.WRITABLE_BOOK, text("gui.overview.lore-name"), lore), p -> editor().promptLore(p));
 
         // 音檔
         SoundLibrary.Entry entry = plugin.library().find(d.soundFile());
         if (entry != null && entry.valid()) {
-            set(13, icon(Material.NOTE_BLOCK, "&f音檔：&e" + entry.path(), lines(
-                    "&7長度：&f" + Editor.formatTime(entry.info().seconds()),
-                    "&7聲道：" + (entry.info().stereo() ? "&e立體聲" : "&f單聲道"),
-                    "", "&e點擊修改")), p -> editor().soundFiles(p));
+            set(13, icon(Material.NOTE_BLOCK, text("gui.overview.sound-name", "file", entry.path()),
+                    join(lines("gui.overview.sound-lore",
+                            "time", Editor.formatTime(entry.info().seconds()),
+                            "channels", text(entry.info().stereo() ? "gui.overview.channels-stereo" : "gui.overview.channels-mono")),
+                            clickEdit)), p -> editor().soundFiles(p));
         } else {
-            set(13, icon(Material.BARRIER, "&c音檔：尚未選擇",
-                    d.soundFile() == null || d.soundFile().isEmpty() ? "&7請選擇一個音檔" : "&7找不到 " + d.soundFile(),
-                    "", "&e點擊選擇"), p -> editor().soundFiles(p));
+            String reason = d.soundFile() == null || d.soundFile().isEmpty()
+                    ? text("gui.overview.sound-missing-none")
+                    : text("gui.overview.sound-missing-file", "file", d.soundFile());
+            set(13, icon(Material.BARRIER, text("gui.overview.sound-missing-name"),
+                    join(one(reason), one(""), one(text("gui.click-select")))), p -> editor().soundFiles(p));
         }
 
         // 循環／冷卻
         if (disc) {
-            set(14, d.loop()
-                    ? icon(Material.LIME_DYE, "&f循環播放：&a開", "", "&e點擊修改")
-                    : icon(Material.GRAY_DYE, "&f循環播放：&7關", "", "&e點擊修改"), p -> editor().loopCooldown(p));
+            set(14, icon(d.loop() ? Material.LIME_DYE : Material.GRAY_DYE,
+                    text(d.loop() ? "gui.overview.loop-on" : "gui.overview.loop-off"), clickEdit),
+                    p -> editor().loopCooldown(p));
         } else {
-            set(14, icon(Material.CLOCK, "&f冷卻：&e" + d.cooldown() + " 秒", "&7最低 " + d.minCooldown() + " 秒", "",
-                    "&e點擊修改"), p -> editor().loopCooldown(p));
+            set(14, icon(Material.CLOCK, text("gui.overview.cooldown-name", "seconds", d.cooldown()),
+                    join(lines("gui.overview.cooldown-lore", "min", d.minCooldown()), clickEdit)),
+                    p -> editor().loopCooldown(p));
         }
 
         // 音量與範圍
-        set(15, icon(Material.BELL, "&f音量 &e" + d.volume() + "% &7・ &f範圍 &e" + d.range() + " 格", "", "&e點擊修改"),
+        set(15, icon(Material.BELL, text("gui.overview.volume-name", "volume", d.volume(), "range", d.range()), clickEdit),
                 p -> editor().volumeRange(p));
 
         // 比較器（只有唱片）
         if (disc) {
             String comp = d.comparator() == null
-                    ? "預設（" + Vanilla.comparator(d.appearance()) + "）"
+                    ? text("gui.overview.comparator-default", "value", Vanilla.comparator(d.appearance()))
                     : String.valueOf(d.comparator());
-            set(16, icon(Material.COMPARATOR, "&f比較器強度：&e" + comp, "", "&e點擊修改"), p -> editor().comparator(p));
+            set(16, icon(Material.COMPARATOR, text("gui.overview.comparator-name", "value", comp), clickEdit),
+                    p -> editor().comparator(p));
         }
 
         // 下排
-        set(18, icon(Material.BARRIER, "&c取消", "&7不儲存並關閉"), p -> p.closeInventory());
+        set(18, icon(Material.BARRIER, text("gui.overview.cancel-name"), lines("gui.overview.cancel-lore")),
+                Player::closeInventory);
         boolean previewing = session.previewEvent() != null;
         set(22, previewing
-                        ? icon(Material.JUKEBOX, "&c停止試聽")
-                        : icon(Material.JUKEBOX, "&a試聽", "&7只播給你自己聽，不用先儲存"),
+                        ? icon(Material.JUKEBOX, text("gui.overview.preview-stop-name"), List.of())
+                        : icon(Material.JUKEBOX, text("gui.overview.preview-name"), lines("gui.overview.preview-lore")),
                 p -> {
                     editor().togglePreview(p, session);
                     redraw();
                 });
-        List<String> saveLore = lines("&7儲存後所有已發出去的物品會自動更新");
+        List<String> saveLore = lines("gui.overview.save-lore");
         if (plugin.config().nativeMode()) {
-            saveLore.add("&7新建或改了長度／範圍／比較器／冷卻時，");
-            saveLore.add("&7重啟前由插件播放，重啟後改用原生模式");
+            saveLore.addAll(lines("gui.overview.save-lore-native"));
         }
-        set(26, icon(Material.LIME_CONCRETE, "&a儲存", saveLore), p -> editor().save(p, session));
+        set(26, icon(Material.LIME_CONCRETE, text("gui.overview.save-name"), saveLore), p -> editor().save(p, session));
         fill(0, 26);
     }
 }

@@ -2,6 +2,7 @@ package clre20.customDisc.pack;
 
 import clre20.customDisc.CustomDisc;
 import clre20.customDisc.audio.OggInfo;
+import org.bukkit.Bukkit;
 
 import java.io.File;
 import java.io.IOException;
@@ -9,12 +10,19 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.zip.CRC32;
 
-/** plugins/CustomDisc/sounds/ 資料夾裡的音檔清單。 */
+/**
+ * plugins/CustomDisc/sounds/ 資料夾裡的音檔清單。
+ * 掃描（讀檔、解析 ogg）一律在背景執行緒做；同一時間只會有一次掃描，重複呼叫會共用結果。
+ * 解析結果依「修改時間＋檔案大小」快取，檔案沒變就不會重新讀。
+ */
 public final class SoundLibrary {
 
     /** 一個音檔。path 是相對 sounds/ 的路徑（用 / 分隔），id 是資源包裡用的安全名稱。 */
@@ -27,7 +35,7 @@ public final class SoundLibrary {
     private record CacheKey(long modified, long size) {
     }
 
-    static final String BAD_NAME = "檔名有伺服器無法辨識的字元（系統語系不是 UTF-8），請改用英文檔名";
+    private static final String BAD_NAME = "sound-error.bad-name";
 
     /** 系統語系不是 UTF-8 時，中文檔名會被讀成 ? 或 U+FFFD，這種檔案打不開。 */
     private static boolean badName(String rel) {
@@ -37,7 +45,10 @@ public final class SoundLibrary {
     private final CustomDisc plugin;
     private final Map<String, CacheKey> cacheKeys = new HashMap<>();
     private final Map<String, Entry> cache = new HashMap<>();
-    private List<Entry> entries = List.of();
+    private volatile List<Entry> entries = List.of();
+    private CompletableFuture<Void> running;
+    /** 掃描用的鎖（和 scanAsync 的鎖分開，主執行緒呼叫 scanAsync 不會被正在進行的掃描卡住）。 */
+    private final Object scanLock = new Object();
 
     public SoundLibrary(CustomDisc plugin) {
         this.plugin = plugin;
@@ -47,16 +58,47 @@ public final class SoundLibrary {
         return new File(plugin.getDataFolder(), "sounds");
     }
 
-    /** 重新掃描資料夾。 */
-    public synchronized void scan() {
+    /** 在背景重新掃描；已經在掃描時直接共用那一次的結果。 */
+    public synchronized CompletableFuture<Void> scanAsync() {
+        if (running != null && !running.isDone()) {
+            return running;
+        }
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        running = future;
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                scan();
+            } finally {
+                future.complete(null);
+            }
+        });
+        return future;
+    }
+
+    /** 立即掃描（只能在背景執行緒或啟動時呼叫）。 */
+    public void scan() {
+        synchronized (scanLock) {
+            scanLocked();
+        }
+    }
+
+    private void scanLocked() {
         File root = folder();
         if (!root.isDirectory() && !root.mkdirs()) {
-            plugin.getLogger().warning("無法建立 sounds 資料夾");
+            plugin.getLogger().warning(plugin.messages().console("folder-failed", "path", root.getPath()));
         }
         List<Entry> list = new ArrayList<>();
         walk(root, root, list);
         list.sort((a, b) -> a.path().compareToIgnoreCase(b.path()));
         entries = Collections.unmodifiableList(list);
+
+        // 清掉已經不存在的檔案的快取
+        Set<String> alive = new HashSet<>();
+        for (Entry e : list) {
+            alive.add(e.path());
+        }
+        cache.keySet().retainAll(alive);
+        cacheKeys.keySet().retainAll(alive);
     }
 
     private void walk(File root, File dir, List<Entry> out) {
@@ -81,8 +123,9 @@ public final class SoundLibrary {
 
     private Entry entry(String rel, File f) {
         CacheKey key = new CacheKey(f.lastModified(), f.length());
-        if (key.equals(cacheKeys.get(rel)) && cache.containsKey(rel)) {
-            return cache.get(rel);
+        Entry cached = cache.get(rel);
+        if (cached != null && key.equals(cacheKeys.get(rel))) {
+            return cached;
         }
         Entry e;
         if (badName(rel)) {
@@ -99,11 +142,12 @@ public final class SoundLibrary {
         return e;
     }
 
-    public synchronized List<Entry> entries() {
+    /** 目前的清單（不會觸發掃描）。 */
+    public List<Entry> entries() {
         return entries;
     }
 
-    public synchronized Entry find(String path) {
+    public Entry find(String path) {
         if (path == null || path.isEmpty()) {
             return null;
         }
@@ -113,6 +157,15 @@ public final class SoundLibrary {
             }
         }
         return null;
+    }
+
+    /** 錯誤原因的顯示文字。 */
+    public String errorText(Entry e) {
+        String err = e.error() == null ? "" : e.error();
+        if (err.startsWith("sound-error.")) {
+            return plugin.messages().get(err);
+        }
+        return plugin.messages().get("sound-error.read-failed", "reason", err);
     }
 
     /**

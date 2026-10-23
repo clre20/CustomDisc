@@ -35,7 +35,8 @@ final class GeyserHook {
         try {
             event.register(p, new ResourcePackOption<?>[0]);
         } catch (Exception e) {
-            logger.warning("送出基岩版資源包失敗：" + e.getMessage());
+            logger.warning(clre20.customDisc.CustomDisc.get().messages().console("bedrock-send-failed",
+                    "reason", String.valueOf(e.getMessage())));
         }
     }
 
@@ -48,7 +49,8 @@ final class GeyserHook {
             pack = ResourcePack.create(PackCodec.path(path));
         } catch (Exception e) {
             pack = null;
-            logger.warning("載入基岩版資源包失敗：" + e.getMessage());
+            logger.warning(clre20.customDisc.CustomDisc.get().messages().console("bedrock-load-failed",
+                    "reason", String.valueOf(e.getMessage())));
         }
     }
 

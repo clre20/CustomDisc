@@ -6,6 +6,7 @@ import java.io.RandomAccessFile;
 
 /**
  * 讀取 Ogg Vorbis 檔的聲道數、取樣率與長度，不需要外部函式庫。
+ * 格式錯誤時丟出的 IOException 訊息是 messages.yml 的 sound-error.* 鍵。
  * 長度 = 最後一個 Ogg page 的 granule position（總取樣數） / 取樣率。
  */
 public record OggInfo(int channels, int sampleRate, double seconds) {
@@ -18,35 +19,35 @@ public record OggInfo(int channels, int sampleRate, double seconds) {
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
             long size = raf.length();
             if (size < 58) {
-                throw new IOException("檔案太小，不是有效的 ogg");
+                throw new IOException("sound-error.too-small");
             }
 
             byte[] head = new byte[(int) Math.min(size, 4096)];
             raf.readFully(head);
             if (!(head[0] == 'O' && head[1] == 'g' && head[2] == 'g' && head[3] == 'S')) {
-                throw new IOException("不是 ogg 檔案");
+                throw new IOException("sound-error.not-ogg");
             }
             int serial = le32(head, 14);
             int segments = head[26] & 0xFF;
             int dataStart = 27 + segments;
             if (dataStart + 16 > head.length) {
-                throw new IOException("ogg 標頭不完整");
+                throw new IOException("sound-error.incomplete");
             }
             // Vorbis identification header: 0x01 'vorbis' version(4) channels(1) rate(4)
             if (head[dataStart] != 0x01 || head[dataStart + 1] != 'v' || head[dataStart + 2] != 'o'
                     || head[dataStart + 3] != 'r' || head[dataStart + 4] != 'b' || head[dataStart + 5] != 'i'
                     || head[dataStart + 6] != 's') {
-                throw new IOException("不是 Vorbis 編碼（Minecraft 只支援 Ogg Vorbis）");
+                throw new IOException("sound-error.not-vorbis");
             }
             int channels = head[dataStart + 11] & 0xFF;
             int rate = le32(head, dataStart + 12);
             if (channels <= 0 || rate <= 0) {
-                throw new IOException("聲道或取樣率不正確");
+                throw new IOException("sound-error.bad-format");
             }
 
             long granule = lastGranule(raf, size, serial);
             if (granule <= 0) {
-                throw new IOException("讀不到音檔長度");
+                throw new IOException("sound-error.no-length");
             }
             return new OggInfo(channels, rate, granule / (double) rate);
         }

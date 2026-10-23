@@ -9,7 +9,7 @@ import org.bukkit.inventory.ItemStack;
 final class ComparatorMenu extends EditorMenu {
 
     ComparatorMenu(EditSession session) {
-        super(session, 3, "比較器訊號強度", 6);
+        super(session, 3, "gui.comparator.title", 6);
     }
 
     @Override
@@ -19,22 +19,21 @@ final class ComparatorMenu extends EditorMenu {
             int value = v;
             boolean selected = d.comparator() != null && d.comparator() == v;
             ItemStack item = new ItemStack(v == 0 ? Material.GUNPOWDER : Material.REDSTONE, Math.max(1, v));
-            ItemStack icon = icon(item, "&f強度 " + v, lines(selected ? "&a✔ 目前選擇" : "&e點擊選擇"));
+            ItemStack icon = icon(item, text("gui.comparator.value-name", "value", v), one(selectLine(selected)));
             set(v, selected ? glow(icon) : icon, p -> {
                 d.comparator(value);
                 editor().overview(p);
             });
         }
         int def = Vanilla.comparator(d.appearance());
-        ItemStack defIcon = icon(Material.REPEATER, "&f預設（" + def + "）", lines(
-                "&7沿用外觀唱片的原版強度",
-                "",
-                d.comparator() == null ? "&a✔ 目前選擇" : "&e點擊選擇"));
+        ItemStack defIcon = icon(Material.REPEATER, text("gui.comparator.default-name", "value", def),
+                join(lines("gui.comparator.default-lore"), one(""), one(selectLine(d.comparator() == null))));
         set(17, d.comparator() == null ? glow(defIcon) : defIcon, p -> {
             d.comparator(null);
             editor().overview(p);
         });
-        set(22, icon(Material.ARROW, "&f返回總覽", "&7比較器設定在重啟伺服器後生效"), p -> editor().overview(p));
+        set(22, icon(Material.ARROW, text("gui.back-overview"), lines("gui.comparator.back-lore")),
+                p -> editor().overview(p));
         fill(0, 26);
     }
 }

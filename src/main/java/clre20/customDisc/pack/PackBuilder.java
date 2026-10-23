@@ -14,7 +14,6 @@ import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +42,14 @@ public final class PackBuilder {
     private PackBuilder() {
     }
 
+    private static clre20.customDisc.config.Messages msg() {
+        return clre20.customDisc.CustomDisc.get().messages();
+    }
+
+    private static String plain(String key) {
+        return clre20.customDisc.util.Text.plain(msg().get(key));
+    }
+
     /** 把聲音的設定和音檔對起來；找不到音檔的會被略過並記錄警告。 */
     public static Map<CustomSound, SoundLibrary.Entry> resolve(List<CustomSound> sounds, SoundLibrary library,
                                                               Consumer<String> warn) {
@@ -50,7 +57,8 @@ public final class PackBuilder {
         for (CustomSound s : sounds) {
             SoundLibrary.Entry e = library.find(s.soundFile());
             if (e == null || !e.valid()) {
-                warn.accept(s.type().displayName() + " " + s.name() + " 的音檔「" + s.soundFile() + "」不存在或無法讀取，暫時不會發出聲音");
+                warn.accept(msg().console("pack-missing-sound", "type", s.type().displayName(), "name", s.name(),
+                        "file", s.soundFile()));
                 continue;
             }
             map.put(s, e);
@@ -67,7 +75,7 @@ public final class PackBuilder {
             }
             SoundLibrary.Entry prev = byId.putIfAbsent(e.id(), e);
             if (prev != null && !prev.path().equals(e.path())) {
-                warn.accept("音檔「" + e.path() + "」和「" + prev.path() + "」轉換後名稱相同，只會使用後者");
+                warn.accept(msg().console("pack-duplicate-id", "file", e.path(), "other", prev.path()));
             }
         }
         return new ArrayList<>(byId.values());
@@ -123,7 +131,7 @@ public final class PackBuilder {
 
     private static JsonObject javaMeta() {
         JsonObject pack = new JsonObject();
-        pack.addProperty("description", "CustomDisc 自訂唱片音樂");
+        pack.addProperty("description", plain("pack.java-description"));
         pack.addProperty("pack_format", 34);
         JsonObject supported = new JsonObject();
         supported.addProperty("min_inclusive", 34);
@@ -205,7 +213,7 @@ public final class PackBuilder {
 
         JsonObject header = new JsonObject();
         header.addProperty("name", "CustomDisc");
-        header.addProperty("description", "CustomDisc 自訂唱片音樂");
+        header.addProperty("description", plain("pack.bedrock-description"));
         header.addProperty("uuid", BEDROCK_HEADER.toString());
         header.add("version", version);
         header.add("min_engine_version", engine);
@@ -258,10 +266,5 @@ public final class PackBuilder {
             sb.append(Character.forDigit((b >> 4) & 0xF, 16)).append(Character.forDigit(b & 0xF, 16));
         }
         return sb.toString();
-    }
-
-    /** 給 resolve 用的空 Map（避免 null）。 */
-    static Map<CustomSound, SoundLibrary.Entry> empty() {
-        return new HashMap<>();
     }
 }

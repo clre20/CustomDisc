@@ -39,7 +39,7 @@ public final class ChatInput implements Listener {
         BukkitTask timeout = Bukkit.getScheduler().runTaskLater(plugin, () -> {
             Pending p = pending.remove(player.getUniqueId());
             if (p != null && player.isOnline()) {
-                clre20.customDisc.config.Msg.send(player, "&e輸入逾時，已返回");
+                plugin.messages().send(player, "chat.timeout");
                 p.onCancel().run();
             }
         }, seconds * 20L);

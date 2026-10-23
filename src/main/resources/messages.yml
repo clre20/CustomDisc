@@ -1,0 +1,327 @@
+# ================================================
+#  CustomDisc（C-Disc）訊息檔
+#  支援 & 顏色碼與 &#RRGGBB；{變數} 會被替換成實際內容
+#  缺少的項目會在啟動與 /cd reload 時自動補上
+#  訊息開頭（prefix）在 config.yml 設定
+# ================================================
+
+# 共用文字
+common:
+  type-disc: "唱片"
+  type-horn: "號角"
+  no-permission: "&c你沒有權限使用這個指令"
+  player-only: "&c只有玩家可以使用這個指令"
+  invalid-type: "&c類型只能是 disc 或 horn"
+  not-found: "&c找不到{type} {name}"
+  mode-native: "&a原生"
+  mode-plugin: "&e插件播放"
+  none: "&8（沒有）"
+
+# 指令
+command:
+  unknown: "&c未知的指令，輸入 &f/{label} help &c查看說明"
+  usage-target: "&c用法：&f/{label} {sub} <disc|horn> <name>"
+  invalid-name: "&cname 只能用 a-z、0-9、_，最多 32 個字（顯示名稱可以在介面裡另外設定中文）"
+  already-exists: "&c{type} {name} 已經存在，要修改請用 &f/{label} edit {id} {name}"
+  delete-done: "&a已刪除{type} &f{name}&a，已發出去的物品會變成「已失效」"
+  give-player-not-found: "&c找不到線上玩家 {player}"
+  give-no-permission-others: "&c你沒有權限給其他玩家"
+  give-console-needs-player: "&c後台使用時請指定玩家：&f/{label} give {id} {name} <玩家> [數量]"
+  give-amount-not-number: "&c數量必須是數字"
+  give-amount-range: "&c數量必須在 1 到 {max} 之間"
+  give-done: "&a已給 &f{player} &a{amount} 個{type} &f{name}"
+  give-dropped: "&7（背包滿了，{dropped} 個掉在地上）"
+  give-received: "&a你收到了 {amount} 個{type}「&r{display}&a」"
+  reload-start: "&7重新載入中…"
+  reload-done: "&a重新載入完成"
+  reload-done-pack: "&a重新載入完成，資源包已更新並推送給線上玩家"
+  reload-restart-hint: "&7有唱片／號角的設定要重啟伺服器後才會改用原生模式"
+
+# /cd help
+help:
+  header: "&f指令說明"
+  line: " &e{usage} &7- {desc}"
+  footer: "&7name 只能用 a-z、0-9、_；音檔放在 plugins/CustomDisc/sounds/"
+  version: "查看版本並檢查更新"
+  list: "唱片／號角列表"
+  create: "建立"
+  edit: "編輯（已發出的物品會自動更新）"
+  delete: "刪除（別名 del）"
+  give: "給予"
+  reload: "重新載入設定、訊息、資料與音檔"
+  arg-player: "玩家"
+  arg-amount: "數量"
+
+# /cd list
+list:
+  header: "&f{type}（{count}）"
+  entry: " &7- &f{name} &7「&r{display}&7」 {mode}"
+
+# 版本檢查
+version:
+  current: "&fCustomDisc（C-Disc）&7版本 &e{version}"
+  checking: "&7正在檢查更新…"
+  failed: "&7檢查更新失敗：{reason}"
+  newer: "&a有新版本 &e{latest}&a（目前 {current}）！下載：&f{url}"
+  latest: "&a目前已是最新版本"
+  dev: "&e目前版本比 GitHub 新（開發版）"
+  join-notify: "&e有新版本 &f{latest}&e（目前 {current}），下載：&f{url}"
+  reason-no-release: "目前還沒有發佈版本"
+  reason-http: "GitHub 回應 {code}"
+  reason-no-tag: "讀不到版本號"
+  reason-offline: "無法連線到 GitHub"
+  reason-disabled: "已在 config.yml 關閉"
+
+# 聊天室輸入
+chat:
+  timeout: "&e輸入逾時，已返回"
+
+# 建立／編輯流程
+edit:
+  action-create: "建立"
+  action-edit: "編輯"
+  cancelled: "&e已取消{action}，沒有儲存任何變更"
+  step: "&8— 建立{type} {name}：第 {step}/{total} 步 —"
+  name-ask: "&f請在聊天室輸入&e顯示名稱&f（支援 & 顏色碼）"
+  name-current: "&7目前：&r{display} &7｜輸入「{cancel}」返回"
+  name-empty: "&c名稱不能是空的，請重新輸入"
+  name-set: "&a名稱已設定為：&r{display}"
+  lore-ask: "&f請在聊天室輸入&e描述&f，用 &e| &f分隔多行（支援 & 顏色碼）"
+  lore-hint: "&7輸入「{clear}」清空描述 ｜輸入「{cancel}」返回"
+  lore-clear-word: "無"
+  lore-cleared: "&a已清空描述"
+  lore-set: "&a描述已設定（{lines} 行）"
+  sound-selected: "&a已選擇音檔：&f{file} &7（{time}）"
+  sound-stereo: "&e注意：這是立體聲音檔，在 Minecraft 裡不會隨距離變小聲，建議轉成單聲道"
+  cooldown-raised: "&e冷卻時間不能低於音檔長度，已自動調整為 {seconds} 秒"
+  preview-no-file: "&c還沒選擇音檔，或音檔已不存在"
+  preview-new-file: "&e這是新加入的音檔，要先 &f/cd reload &e重新產生資源包後才能試聽"
+  preview-playing: "&a試聽中（只有你聽得到），再點一次停止"
+  save-no-file: "&c請先選擇音檔"
+  save-exists: "&c名稱 {name} 已經被使用了"
+  save-failed: "&c儲存失敗：{reason}"
+  save-created: "&a已建立{type} &f{name}"
+  save-saved: "&a已儲存{type} &f{name}"
+  save-restart-hint: "&7目前由插件播放，重啟伺服器後會改用原生模式"
+  save-give-hint: "&7用 &f/cd give {id} {name} &7拿取"
+  loading-sounds: "&7正在讀取音檔…"
+
+# 播放
+playback:
+  disc-invalid: "&c這張唱片已失效，無法播放"
+  horn-invalid: "&c這支號角已失效，無法使用"
+
+# 物品
+item:
+  invalid-name: "&c已失效的{type}"
+  invalid-lore:
+    - "&7這個{type}已被刪除，無法使用"
+
+# 資源包
+pack:
+  prompt: "&6本伺服器使用自訂唱片音樂資源包"
+  kick: "&c必須接受唱片資源包才能進入伺服器"
+  java-description: "CustomDisc 自訂唱片音樂"
+  bedrock-description: "CustomDisc 自訂唱片音樂"
+  datapack-description: "CustomDisc 自訂唱片與號角（自動產生，請勿停用）"
+
+# 音檔讀取錯誤（顯示在選擇音檔頁）
+sound-error:
+  bad-name: "檔名有伺服器無法辨識的字元（系統語系不是 UTF-8），請改用英文檔名"
+  too-small: "檔案太小，不是有效的 ogg"
+  not-ogg: "不是 ogg 檔案"
+  incomplete: "ogg 標頭不完整"
+  not-vorbis: "不是 Vorbis 編碼（Minecraft 只支援 Ogg Vorbis）"
+  bad-format: "聲道或取樣率不正確"
+  no-length: "讀不到音檔長度"
+  read-failed: "讀取失敗：{reason}"
+
+# 山羊角名稱
+horn-names:
+  PONDER: "沉思（Ponder）"
+  SING: "歌唱（Sing）"
+  SEEK: "探索（Seek）"
+  FEEL: "感受（Feel）"
+  ADMIRE: "讚美（Admire）"
+  CALL: "呼喚（Call）"
+  YEARN: "渴望（Yearn）"
+  DREAM: "夢想（Dream）"
+
+# 箱子介面
+gui:
+  title-step: "&8{title} &7({step}/{total})"
+  title: "&8{title}"
+  click-select: "&e點擊選擇"
+  selected: "&a✔ 目前選擇"
+  click-edit: "&e點擊修改"
+  cancel-create: "&c取消建立"
+  cancel-create-lore:
+    - "&7不儲存並關閉"
+  previous-step: "&f上一步"
+  back-overview: "&f返回總覽"
+  next-step: "&a下一步"
+  previous-page: "&f上一頁"
+  next-page: "&f下一頁"
+  step-name: "&f第 {step}/{total} 步"
+  step-lore:
+    - "&7建立{type}：&f{name}"
+  adjust-minus: "&c{delta}"
+  adjust-plus: "&a+{delta}"
+  adjust-lore:
+    - "&7點擊後：&f{target}"
+  appearance:
+    title: "選擇外觀"
+    disc-name: "&f{name}"
+    disc-lore:
+      - "&7比較器強度：&f{comparator}"
+    horn-name: "&f{name}"
+    horn-lore:
+      - "&7插件播放模式時物品顯示的樂器"
+  sound:
+    title: "選擇音檔"
+    empty-name: "&e還沒有任何音檔"
+    empty-lore:
+      - "&7把 .ogg 檔放進"
+      - "&fplugins/CustomDisc/sounds/"
+      - "&7再點下方的「重新整理」"
+    invalid-name: "&c{file}"
+    invalid-lore:
+      - "&7無法使用：{error}"
+    file-name: "&f{file}"
+    file-lore:
+      - "&7長度：&f{time}"
+      - "&7聲道：{channels}"
+    channels-mono: "&f單聲道"
+    channels-stereo: "&e立體聲（不會隨距離變小聲）"
+    new-file: "&8新檔案，/cd reload 後才能試聽"
+    refresh-name: "&f重新整理"
+    refresh-lore:
+      - "&7重新讀取 sounds 資料夾"
+  loop:
+    title: "循環播放"
+    on-name: "&a循環播放：開"
+    on-lore:
+      - "&7放進唱片機後會一直重複播放"
+      - "&7（唱片機輪播時不看這個設定）"
+      - ""
+      - "&e點擊切換"
+    off-name: "&7循環播放：關"
+    off-lore:
+      - "&7播完一次就停止"
+      - ""
+      - "&e點擊切換"
+  cooldown:
+    title: "冷卻時間"
+    value-name: "&f冷卻：&e{seconds} 秒"
+    value-lore:
+      - "&7最低 {min} 秒（音檔長度）"
+      - "&7吹完後玩家身上所有號角"
+      - "&7（含原版山羊角）都要等冷卻結束"
+  volume:
+    title: "音量與範圍"
+    volume-label-name: "&f音量"
+    volume-label-lore:
+      - "&70–100%"
+    volume-name: "&f音量：&e{volume}%"
+    volume-lore:
+      - "&7聲音的大小"
+    range-label-name: "&f可聽範圍"
+    range-label-lore:
+      - "&71–512 格"
+    range-name: "&f範圍：&e{range} 格"
+    range-lore:
+      - "&7離聲音多遠以內聽得到"
+    range-lore-disc:
+      - "&7原生模式下，唱片機只會通知"
+      - "&764 格內的玩家開始播放"
+  comparator:
+    title: "比較器訊號強度"
+    value-name: "&f強度 {value}"
+    default-name: "&f預設（{value}）"
+    default-lore:
+      - "&7沿用外觀唱片的原版強度"
+    back-lore:
+      - "&7比較器設定在重啟伺服器後生效"
+  overview:
+    title-create: "確認建立{type}：{name}"
+    title-edit: "編輯{type}：{name}"
+    appearance-name: "&f外觀：&e{name}"
+    name-name: "&f名稱"
+    name-lore:
+      - "&r{display}"
+      - ""
+      - "&e點擊修改（聊天室輸入）"
+    lore-name: "&f描述"
+    lore-line: "&r{line}"
+    lore-footer:
+      - ""
+      - "&e點擊修改（聊天室輸入）"
+    sound-name: "&f音檔：&e{file}"
+    sound-lore:
+      - "&7長度：&f{time}"
+      - "&7聲道：{channels}"
+    channels-mono: "&f單聲道"
+    channels-stereo: "&e立體聲"
+    sound-missing-name: "&c音檔：尚未選擇"
+    sound-missing-none: "&7請選擇一個音檔"
+    sound-missing-file: "&7找不到 {file}"
+    loop-on: "&f循環播放：&a開"
+    loop-off: "&f循環播放：&7關"
+    cooldown-name: "&f冷卻：&e{seconds} 秒"
+    cooldown-lore:
+      - "&7最低 {min} 秒"
+    volume-name: "&f音量 &e{volume}% &7・ &f範圍 &e{range} 格"
+    comparator-name: "&f比較器強度：&e{value}"
+    comparator-default: "預設（{value}）"
+    cancel-name: "&c取消"
+    cancel-lore:
+      - "&7不儲存並關閉"
+    preview-name: "&a試聽"
+    preview-lore:
+      - "&7只播給你自己聽，不用先儲存"
+    preview-stop-name: "&c停止試聽"
+    save-name: "&a儲存"
+    save-lore:
+      - "&7儲存後所有已發出去的物品會自動更新"
+    save-lore-native:
+      - "&7新建或改了長度／範圍／比較器／冷卻時，"
+      - "&7重啟前由插件播放，重啟後改用原生模式"
+
+# 後台訊息
+console:
+  config-filled: "config.yml 已自動補上 {count} 個缺少的設定，原本的值已保留"
+  messages-filled: "messages.yml 已自動補上 {count} 個缺少的訊息，原本的內容已保留"
+  file-update-failed: "{file} 自動補齊失敗：{reason}"
+  enabled: "CustomDisc {version} 已啟用（Minecraft {mc}）：唱片 {discs} 張、號角 {horns} 支"
+  no-instruments: "此版本不支援自訂樂器，號角一律由插件播放"
+  datapack-changed: "資料包已更新（{path}），重啟伺服器後新的唱片／號角會改用原生模式"
+  datapack-write-failed: "寫入資料包失敗：{reason}"
+  datapack-read-failed: "讀取資料包檔案 {file} 失敗：{reason}"
+  http-started: "資源包 HTTP 伺服器已啟動：{host}:{port}（玩家下載網址 {url}）"
+  url-auto: "自動使用玩家連線的位址"
+  httphub-used: "資源包改由 HttpHub 提供（端口 {port}），不另外開端口"
+  httphub-not-running: "HttpHub 的 HTTP 伺服器沒有開啟，玩家會下載不到資源包，請檢查 HttpHub 的設定與後台訊息"
+  httphub-lost: "HttpHub 已停用，改用內建的 HTTP 伺服器"
+  pack-no-host-hub: "無法取得 {player} 連線時使用的位址，沒有送出唱片資源包；請在 HttpHub 的 config.yml 把 server.public-url 改成完整網址"
+  pack-no-host: "無法取得 {player} 連線時使用的位址，沒有送出唱片資源包；請在 config.yml 把 resource-pack.public-url 改成完整網址"
+  config-migrated: "config.yml：已把舊的預設值改成新的預設值（public-url → auto、port 52011 → 52012，避免和 PMonitor 衝突）"
+  http-failed: "資源包 HTTP 伺服器無法啟動（端口 {port}）：{reason}。請確認端口沒有被其他程式使用。"
+  pack-failed: "產生資源包失敗：{reason}"
+  pack-missing-sound: "{type} {name} 的音檔「{file}」不存在或無法讀取，暫時不會發出聲音"
+  pack-duplicate-id: "音檔「{file}」和「{other}」轉換後名稱相同，只會使用後者"
+  pack-download-failed: "{player} 下載唱片資源包失敗（{status}）。請確認 public-url 外部連得到：{url}"
+  geyser-connected: "已連接 Geyser，基岩版玩家登入時會自動送出唱片資源包"
+  geyser-failed: "Geyser 整合失敗，基岩版玩家不會收到唱片資源包：{reason}"
+  floodgate-failed: "Floodgate 整合失敗：{reason}"
+  bedrock-send-failed: "送出基岩版資源包失敗：{reason}"
+  bedrock-load-failed: "載入基岩版資源包失敗：{reason}"
+  update-newer: "有新版本 {latest}（目前 {current}）：{url}"
+  update-latest: "目前已是最新版本"
+  update-dev: "目前版本比 GitHub 新（開發版）"
+  update-failed: "檢查更新失敗：{reason}"
+  length-updated: "{type} {name} 的音檔長度已更新為 {seconds} 秒"
+  length-update-failed: "更新 {name} 的長度失敗：{reason}"
+  data-invalid-name: "略過名稱不合法的檔案：{file}（只能用 a-z、0-9、_）"
+  data-read-failed: "讀取 {file} 失敗：{reason}"
+  data-save-failed: "儲存 {file} 失敗：{reason}"
+  folder-failed: "無法建立資料夾：{path}"

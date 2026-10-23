@@ -1,7 +1,6 @@
 package clre20.customDisc.playback;
 
 import clre20.customDisc.CustomDisc;
-import clre20.customDisc.config.Msg;
 import clre20.customDisc.data.CustomSound;
 import clre20.customDisc.pack.DatapackService;
 import org.bukkit.Bukkit;
@@ -63,7 +62,7 @@ public final class HornListener implements Listener {
         CustomSound sound = plugin.items().soundOf(item);
         if (sound == null) {
             event.setUseItemInHand(Event.Result.DENY);
-            Msg.send(player, "&c這支號角已失效，無法使用");
+            plugin.messages().send(player, "playback.horn-invalid");
             return;
         }
         if (plugin.datapack().isNative(sound) && plugin.items().refresh(item) == null) {

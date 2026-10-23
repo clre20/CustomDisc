@@ -1,7 +1,7 @@
 package clre20.customDisc.gui;
 
 import clre20.customDisc.CustomDisc;
-import clre20.customDisc.config.Msg;
+import clre20.customDisc.config.Messages;
 import clre20.customDisc.data.CustomSound;
 import clre20.customDisc.data.SoundType;
 import clre20.customDisc.pack.DatapackService;
@@ -9,7 +9,6 @@ import clre20.customDisc.pack.SoundLibrary;
 import org.bukkit.SoundCategory;
 import org.bukkit.entity.Player;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -30,6 +29,10 @@ public final class Editor {
 
     public Editor(CustomDisc plugin) {
         this.plugin = plugin;
+    }
+
+    private Messages msg() {
+        return plugin.messages();
     }
 
     // ------------------------------------------------------------ 開始／結束
@@ -77,7 +80,7 @@ public final class Editor {
         stopPreview(player, s);
         plugin.chat().cancelSilently(player.getUniqueId());
         if (message) {
-            Msg.send(player, "&e已取消" + (s.creating() ? "建立" : "編輯") + "，沒有儲存任何變更");
+            msg().send(player, "edit.cancelled", "action", msg().get(s.creating() ? "edit.action-create" : "edit.action-edit"));
         }
     }
 
@@ -124,12 +127,21 @@ public final class Editor {
         }
     }
 
+    /** 選擇音檔頁：先在背景重新掃描 sounds 資料夾，再回主執行緒開介面。 */
     public void soundFiles(Player player) {
         EditSession s = require(player);
-        if (s != null) {
-            plugin.library().scan();
-            new SoundFileMenu(s, 0).open(player);
+        if (s == null) {
+            return;
         }
+        s.navigating(true);
+        java.util.UUID id = player.getUniqueId();
+        plugin.library().scanAsync().thenRun(() -> plugin.getServer().getScheduler().runTask(plugin, () -> {
+            s.navigating(false);
+            Player p = plugin.getServer().getPlayer(id);
+            if (p != null && sessions.get(id) == s) {
+                new SoundFileMenu(s, 0).open(p);
+            }
+        }));
     }
 
     public void loopCooldown(Player player) {
@@ -170,12 +182,12 @@ public final class Editor {
         String cancel = plugin.config().cancelWord();
         plugin.chat().ask(player, text -> {
             if (text.isBlank()) {
-                Msg.send(player, "&c名稱不能是空的，請重新輸入");
+                msg().send(player, "edit.name-empty");
                 promptName(player);
                 return;
             }
             s.draft().displayName(text);
-            Msg.send(player, "&a名稱已設定為：&r" + text);
+            msg().send(player, "edit.name-set", "display", text);
             if (s.wizard()) {
                 promptLore(player);
             } else {
@@ -190,8 +202,8 @@ public final class Editor {
         });
         player.closeInventory();
         step(player, s, 2);
-        Msg.send(player, "&f請在聊天室輸入&e顯示名稱&f（支援 & 顏色碼）");
-        Msg.send(player, "&7目前：&r" + s.draft().displayName() + " &7｜輸入「" + cancel + "」返回");
+        msg().send(player, "edit.name-ask");
+        msg().send(player, "edit.name-current", "display", s.draft().displayName(), "cancel", cancel);
     }
 
     public void promptLore(Player player) {
@@ -200,15 +212,20 @@ public final class Editor {
             return;
         }
         String cancel = plugin.config().cancelWord();
+        String clear = msg().get("edit.lore-clear-word");
         plugin.chat().ask(player, text -> {
             List<String> lines = new ArrayList<>();
-            if (!text.equals("無")) {
+            if (!text.equals(clear)) {
                 for (String line : text.split("\\|")) {
                     lines.add(line.trim());
                 }
             }
             s.draft().lore(lines);
-            Msg.send(player, lines.isEmpty() ? "&a已清空描述" : "&a描述已設定（" + lines.size() + " 行）");
+            if (lines.isEmpty()) {
+                msg().send(player, "edit.lore-cleared");
+            } else {
+                msg().send(player, "edit.lore-set", "lines", lines.size());
+            }
             if (s.wizard()) {
                 soundFiles(player);
             } else {
@@ -223,14 +240,14 @@ public final class Editor {
         });
         player.closeInventory();
         step(player, s, 2);
-        Msg.send(player, "&f請在聊天室輸入&e描述&f，用 &e| &f分隔多行（支援 & 顏色碼）");
-        Msg.send(player, "&7輸入「無」清空描述 ｜輸入「" + cancel + "」返回");
+        msg().send(player, "edit.lore-ask");
+        msg().send(player, "edit.lore-hint", "clear", clear, "cancel", cancel);
     }
 
     private void step(Player player, EditSession s, int step) {
         if (s.wizard()) {
-            Msg.send(player, "&8— 建立" + s.draft().type().displayName() + " " + s.draft().name()
-                    + "：第 " + step + "/" + STEPS + " 步 —");
+            msg().send(player, "edit.step", "type", s.draft().type().displayName(), "name", s.draft().name(),
+                    "step", step, "total", STEPS);
         }
     }
 
@@ -239,13 +256,13 @@ public final class Editor {
         CustomSound d = s.draft();
         d.soundFile(entry.path());
         d.length(entry.info().seconds());
-        Msg.send(player, "&a已選擇音檔：&f" + entry.path() + " &7（" + formatTime(entry.info().seconds()) + "）");
+        msg().send(player, "edit.sound-selected", "file", entry.path(), "time", formatTime(entry.info().seconds()));
         if (entry.info().stereo()) {
-            Msg.send(player, "&e注意：這是立體聲音檔，在 Minecraft 裡不會隨距離變小聲，建議轉成單聲道");
+            msg().send(player, "edit.sound-stereo");
         }
         if (d.type() == SoundType.HORN && d.cooldown() < d.minCooldown()) {
             d.cooldown(d.minCooldown());
-            Msg.send(player, "&e冷卻時間不能低於音檔長度，已自動調整為 " + d.cooldown() + " 秒");
+            msg().send(player, "edit.cooldown-raised", "seconds", d.cooldown());
         }
         if (s.wizard()) {
             loopCooldown(player);
@@ -263,17 +280,17 @@ public final class Editor {
         }
         SoundLibrary.Entry e = plugin.library().find(s.draft().soundFile());
         if (e == null || !e.valid()) {
-            Msg.send(player, "&c還沒選擇音檔，或音檔已不存在");
+            msg().send(player, "edit.preview-no-file");
             return;
         }
         if (!plugin.packs().contains(e.id())) {
-            Msg.send(player, "&e這是新加入的音檔，要先 &f/cd reload &e重新產生資源包後才能試聽");
+            msg().send(player, "edit.preview-new-file");
             return;
         }
         String event = DatapackService.NAMESPACE + ":file." + e.id();
         player.playSound(player.getLocation(), event, SoundCategory.RECORDS, s.draft().volume() / 100f, 1.0f);
         s.previewEvent(event);
-        Msg.send(player, "&a試聽中（只有你聽得到），再點一次停止");
+        msg().send(player, "edit.preview-playing");
     }
 
     void stopPreview(Player player, EditSession s) {
@@ -289,7 +306,7 @@ public final class Editor {
         CustomSound d = s.draft();
         SoundLibrary.Entry e = plugin.library().find(d.soundFile());
         if (e == null || !e.valid()) {
-            Msg.send(player, "&c請先選擇音檔");
+            msg().send(player, "edit.save-no-file");
             return;
         }
         d.length(e.info().seconds());
@@ -297,28 +314,23 @@ public final class Editor {
             d.cooldown(d.minCooldown());
         }
         if (s.creating() && plugin.store().exists(d.type(), d.name())) {
-            Msg.send(player, "&c名稱 " + d.name() + " 已經被使用了");
+            msg().send(player, "edit.save-exists", "name", d.name());
             return;
         }
-        try {
-            plugin.store().save(d);
-        } catch (IOException ex) {
-            Msg.send(player, "&c儲存失敗：" + ex.getMessage());
-            return;
-        }
+        plugin.store().save(d);
         sessions.remove(player.getUniqueId());
         stopPreview(player, s);
         player.closeInventory();
 
         CustomSound saved = plugin.store().get(d.type(), d.name());
         plugin.applyChanges();
-        String what = d.type().displayName() + " &f" + d.name();
-        Msg.send(player, "&a已" + (s.creating() ? "建立" : "儲存") + what);
+        msg().send(player, s.creating() ? "edit.save-created" : "edit.save-saved",
+                "type", d.type().displayName(), "name", d.name());
         if (plugin.datapack().nativeAfterRestart(saved)) {
-            Msg.send(player, "&7目前由插件播放，重啟伺服器後會改用原生模式");
+            msg().send(player, "edit.save-restart-hint");
         }
         if (s.creating()) {
-            Msg.send(player, "&7用 &f/cd give " + d.type().id() + " " + d.name() + " &7拿取");
+            msg().send(player, "edit.save-give-hint", "id", d.type().id(), "name", d.name());
         }
     }
 

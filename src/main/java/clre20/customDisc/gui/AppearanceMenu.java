@@ -17,7 +17,7 @@ final class AppearanceMenu extends EditorMenu {
     private final int page;
 
     AppearanceMenu(EditSession session, int page) {
-        super(session, 6, "選擇外觀", 1);
+        super(session, 6, "gui.appearance.title", 1);
         this.page = page;
     }
 
@@ -46,20 +46,20 @@ final class AppearanceMenu extends EditorMenu {
 
         back(45, null);
         if (page > 0) {
-            set(48, icon(Material.ARROW, "&f上一頁"), p -> new AppearanceMenu(session, page - 1).open(p));
+            set(48, icon(Material.ARROW, text("gui.previous-page"), List.of()), p -> new AppearanceMenu(session, page - 1).open(p));
         }
         stepIndicator(49);
         if (page < pages - 1) {
-            set(50, icon(Material.ARROW, "&f下一頁"), p -> new AppearanceMenu(session, page + 1).open(p));
+            set(50, icon(Material.ARROW, text("gui.next-page"), List.of()), p -> new AppearanceMenu(session, page + 1).open(p));
         }
         fill(45, 53);
     }
 
     private ItemStack discIcon(String material, boolean selected) {
-        return icon(new ItemStack(Vanilla.material(material)), "&f" + Vanilla.discName(material), lines(
-                "&7比較器強度：&f" + Vanilla.comparator(material),
-                "",
-                selected ? "&a✔ 目前選擇" : "&e點擊選擇"));
+        return icon(new ItemStack(Vanilla.material(material)),
+                text("gui.appearance.disc-name", "name", Vanilla.discName(material)),
+                join(lines("gui.appearance.disc-lore", "comparator", Vanilla.comparator(material)),
+                        one(""), one(selectLine(selected))));
     }
 
     private ItemStack hornIcon(String horn, boolean selected) {
@@ -68,9 +68,7 @@ final class AppearanceMenu extends EditorMenu {
             meta.setInstrument(Vanilla.instrument(horn));
             item.setItemMeta(meta);
         }
-        return icon(item, "&f" + Vanilla.hornName(horn), lines(
-                "&7插件播放模式時物品顯示的樂器",
-                "",
-                selected ? "&a✔ 目前選擇" : "&e點擊選擇"));
+        return icon(item, text("gui.appearance.horn-name", "name", Vanilla.hornName(horn)),
+                join(lines("gui.appearance.horn-lore"), one(""), one(selectLine(selected))));
     }
 }

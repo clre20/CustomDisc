@@ -3,27 +3,34 @@
 #  https://github.com/clre20/CustomDisc
 # ================================================
 
-# 請勿修改：插件更新時會用它自動補上新設定
-config-version: 1
+# 設定檔版本（缺少的設定會在啟動與 /cd reload 時自動補上，原本的值會保留）
+config-version: 3
 
 # 所有訊息的開頭（支援 & 顏色碼與 &#RRGGBB）
+# 其他所有文字都在 messages.yml
 prefix: "&8[&bC-Disc&8] &r"
 
-# 版本檢查：啟動時在後台檢查一次（輸入 /cd 時一律會檢查）
+# 版本檢查（GitHub Releases）
+# 結果會快取 10 分鐘，不會定時輪詢
 update-checker:
-  enabled: true
+  # 伺服器啟動時在後台檢查一次
+  check-on-startup: true
+  # 有新版本時，有 customdisc.version 權限的玩家登入 3 秒後收到提醒
+  notify-on-join: true
 
 # Java 版資源包（插件自己打包，與 server.properties 的資源包分開）
 resource-pack:
-  # 內建 HTTP 伺服器綁定的位址與端口
+  # 有裝 HttpHub 插件時，改由它提供下載（所有插件共用 HttpHub 的端口，下面的 host／port／public-url 不使用）
+  use-httphub: true
+  # 內建 HTTP 伺服器綁定的位址與端口（不要和其他插件用同一個端口，例如 PMonitor 預設用 52011）
   host: 0.0.0.0
-  port: 52011
-  # 玩家下載用的網址，外部必須連得到（結尾不要加 /）
-  public-url: "http://pg.yucl.qzz.io:52011"
-  # 強制下載，拒絕就踢出
+  port: 52012
+  # 玩家下載資源包的網址
+  #   auto：用玩家連線時輸入的位址（網域或 IP）加上上面的 port，不用另外設定
+  #   使用 BungeeCord／Velocity 等代理，或下載走不同網域時，填完整網址，例如 "http://example.com:52012"
+  public-url: "auto"
+  # 強制下載，拒絕就踢出（提示文字與踢出訊息在 messages.yml）
   required: true
-  prompt: "&6本伺服器使用自訂唱片音樂資源包"
-  kick-message: "&c必須接受唱片資源包才能進入伺服器"
 
 # 基岩版（Geyser）：自動產生基岩版資源包，玩家登入時送出
 bedrock:

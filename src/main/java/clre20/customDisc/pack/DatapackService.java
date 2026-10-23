@@ -21,7 +21,10 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.Map;
 import java.util.Objects;
 
@@ -45,6 +48,7 @@ public final class DatapackService {
     private final CustomDisc plugin;
     private final Map<String, Snapshot> bootSongs = new HashMap<>();
     private final Map<String, Snapshot> bootInstruments = new HashMap<>();
+    private volatile File folder;
 
     public DatapackService(CustomDisc plugin) {
         this.plugin = plugin;
@@ -55,8 +59,14 @@ public final class DatapackService {
         return McVersion.current().atLeast(1, 21, 2);
     }
 
+    /** 資料包資料夾（第一次在主執行緒算出來後快取，背景寫入時不用再碰世界）。 */
     public File folder() {
-        return new File(new File(levelRoot(), "datapacks"), NAMESPACE);
+        File f = folder;
+        if (f == null) {
+            f = new File(new File(levelRoot(), "datapacks"), NAMESPACE);
+            folder = f;
+        }
+        return f;
     }
 
     /**
@@ -116,35 +126,61 @@ public final class DatapackService {
                             o.get("comparator_output").getAsInt(), 0));
                 }
             } catch (Exception e) {
-                plugin.getLogger().warning("讀取資料包檔案 " + f.getName() + " 失敗：" + e.getMessage());
+                plugin.getLogger().warning(plugin.messages().console("datapack-read-failed", "file", f.getName(),
+                        "reason", e.getMessage()));
             }
         }
     }
 
     /**
-     * 寫入資料包。回傳 true 代表內容有變，需要重啟伺服器才會套用。
+     * 寫入資料包（啟動時在主執行緒呼叫）。回傳 true 代表內容有變，需要重啟伺服器才會套用。
      */
     public boolean write() {
+        return writeFiles(copies(SoundType.DISC), copies(SoundType.HORN));
+    }
+
+    /** 在背景寫入資料包（資料先在主執行緒複製）。 */
+    public CompletableFuture<Boolean> writeAsync() {
+        List<CustomSound> discs = copies(SoundType.DISC);
+        List<CustomSound> horns = copies(SoundType.HORN);
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> result.complete(writeFiles(discs, horns)));
+        return result;
+    }
+
+    private List<CustomSound> copies(SoundType type) {
+        List<CustomSound> list = new ArrayList<>();
+        for (CustomSound s : plugin.store().all(type)) {
+            list.add(s.copy());
+        }
+        return list;
+    }
+
+    private synchronized boolean writeFiles(List<CustomSound> discs, List<CustomSound> horns) {
         boolean changed = false;
         try {
             File root = folder();
-            if (!root.isDirectory() && !root.mkdirs()) {
-                throw new IOException("無法建立 " + root);
-            }
+            mkdirs(root);
             changed |= writeIfChanged(new File(root, "pack.mcmeta"), packMeta());
 
-            for (CustomSound s : plugin.store().all(SoundType.DISC)) {
+            for (CustomSound s : discs) {
                 changed |= writeIfChanged(new File(songDir(), s.name() + ".json"), songJson(s));
             }
             if (instrumentsSupported()) {
-                for (CustomSound s : plugin.store().all(SoundType.HORN)) {
+                for (CustomSound s : horns) {
                     changed |= writeIfChanged(new File(instrumentDir(), s.name() + ".json"), instrumentJson(s));
                 }
             }
         } catch (IOException e) {
-            plugin.getLogger().warning("寫入資料包失敗：" + e.getMessage());
+            plugin.getLogger().warning(plugin.messages().console("datapack-write-failed", "reason", e.getMessage()));
         }
         return changed;
+    }
+
+    private void mkdirs(File dir) throws IOException {
+        if (!dir.isDirectory() && !dir.mkdirs()) {
+            throw new IOException(plugin.messages().console("folder-failed", "path", dir.getPath()));
+        }
     }
 
     private boolean writeIfChanged(File file, JsonElement json) throws IOException {
@@ -152,17 +188,14 @@ public final class DatapackService {
         if (file.isFile() && Files.readString(file.toPath(), StandardCharsets.UTF_8).equals(text)) {
             return false;
         }
-        File parent = file.getParentFile();
-        if (!parent.isDirectory() && !parent.mkdirs()) {
-            throw new IOException("無法建立 " + parent);
-        }
+        mkdirs(file.getParentFile());
         Files.writeString(file.toPath(), text, StandardCharsets.UTF_8);
         return true;
     }
 
     private JsonObject packMeta() {
         JsonObject pack = new JsonObject();
-        pack.addProperty("description", "CustomDisc 自訂唱片與號角（自動產生，請勿停用）");
+        pack.addProperty("description", Text.plain(plugin.messages().get("pack.datapack-description")));
         // 舊版用 pack_format / supported_formats，1.21.9 以上用 min_format / max_format，全部一起寫
         pack.addProperty("pack_format", 48);
         JsonObject supported = new JsonObject();

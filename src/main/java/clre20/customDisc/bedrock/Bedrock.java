@@ -21,18 +21,22 @@ public final class Bedrock {
             try {
                 floodgate = new FloodgateHook();
             } catch (Throwable t) {
-                log.warning("Floodgate 整合失敗：" + t.getMessage());
+                log.warning(msg("floodgate-failed", t));
             }
         }
         if (packEnabled && Bukkit.getPluginManager().getPlugin("Geyser-Spigot") != null) {
             try {
                 geyser = new GeyserHook(plugin, log);
-                log.info("已連接 Geyser，基岩版玩家登入時會自動送出唱片資源包");
+                log.info(clre20.customDisc.CustomDisc.get().messages().console("geyser-connected"));
             } catch (Throwable t) {
                 geyser = null;
-                log.warning("Geyser 整合失敗，基岩版玩家不會收到唱片資源包：" + t.getMessage());
+                log.warning(msg("geyser-failed", t));
             }
         }
+    }
+
+    private static String msg(String key, Throwable t) {
+        return clre20.customDisc.CustomDisc.get().messages().console(key, "reason", String.valueOf(t.getMessage()));
     }
 
     public boolean geyserActive() {

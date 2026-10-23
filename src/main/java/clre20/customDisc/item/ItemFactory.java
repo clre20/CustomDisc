@@ -42,10 +42,15 @@ public final class ItemFactory {
 
     /** 物品上的 ID（disc:xxx / horn:xxx），不是自訂物品則回傳 null。 */
     public String idOf(ItemStack item) {
-        if (item == null || item.getType() == Material.AIR || !item.hasItemMeta()) {
+        // 快速過濾：只有唱片和山羊角才可能是自訂物品，其他物品不讀 ItemMeta（避免建立物件）
+        if (item == null || !maybeCustom(item.getType()) || !item.hasItemMeta()) {
             return null;
         }
         return item.getItemMeta().getPersistentDataContainer().get(idKey, PersistentDataType.STRING);
+    }
+
+    private static boolean maybeCustom(Material type) {
+        return type == Material.GOAT_HORN || Vanilla.isDisc(type);
     }
 
     public boolean isCustom(ItemStack item) {
@@ -169,11 +174,9 @@ public final class ItemFactory {
     private ItemStack invalid(ItemStack old, String id) {
         ItemStack item = old.clone();
         ItemMeta meta = item.getItemMeta();
-        String typeName = id.startsWith("horn:") ? "號角" : "唱片";
-        meta.itemName(Text.item("&c已失效的" + typeName));
-        List<String> lore = new ArrayList<>();
-        lore.add("&7這個" + typeName + "已被刪除，無法使用");
-        meta.lore(Text.itemLines(lore));
+        String typeName = (id.startsWith("horn:") ? SoundType.HORN : SoundType.DISC).displayName();
+        meta.itemName(Text.item(plugin.messages().get("item.invalid-name", "type", typeName)));
+        meta.lore(Text.itemLines(plugin.messages().list("item.invalid-lore", "type", typeName)));
         meta.getPersistentDataContainer().set(sigKey, PersistentDataType.STRING, "x");
         item.setItemMeta(meta);
         return item;

@@ -65,16 +65,6 @@ public final class Vanilla {
     public static final List<String> HORNS = List.of(
             "PONDER", "SING", "SEEK", "FEEL", "ADMIRE", "CALL", "YEARN", "DREAM");
 
-    private static final Map<String, String> HORN_NAMES = Map.of(
-            "PONDER", "沉思（Ponder）",
-            "SING", "歌唱（Sing）",
-            "SEEK", "探索（Seek）",
-            "FEEL", "感受（Feel）",
-            "ADMIRE", "讚美（Admire）",
-            "CALL", "呼喚（Call）",
-            "YEARN", "渴望（Yearn）",
-            "DREAM", "夢想（Dream）");
-
     private Vanilla() {
     }
 
@@ -121,7 +111,8 @@ public final class Vanilla {
     }
 
     public static String hornName(String appearance) {
-        return HORN_NAMES.getOrDefault(appearance, appearance);
+        // messages.yml 的 horn-names.<名稱>
+        return clre20.customDisc.CustomDisc.get().messages().get("horn-names." + appearance);
     }
 
     public static MusicInstrument instrument(String appearance) {
@@ -135,11 +126,8 @@ public final class Vanilla {
         return m != null && isDisc(m) ? m : Material.MUSIC_DISC_CAT;
     }
 
-    /** 唱片機輪播能用的容器：單個箱子、陷阱箱、各種銅箱。 */
-    public static boolean isPlaylistContainer(Material m) {
-        if (m == Material.CHEST || m == Material.TRAPPED_CHEST) {
-            return true;
-        }
-        return m.name().endsWith("COPPER_CHEST");
+    /** 原版唱片的歌曲名稱，例如 MUSIC_DISC_CAT → cat；不是唱片時回傳 null。 */
+    public static String songKey(Material m) {
+        return isDisc(m) ? m.name().substring("MUSIC_DISC_".length()).toLowerCase(Locale.ROOT) : null;
     }
 }

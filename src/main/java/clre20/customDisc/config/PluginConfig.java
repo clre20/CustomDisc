@@ -3,80 +3,73 @@ package clre20.customDisc.config;
 import clre20.customDisc.CustomDisc;
 import org.bukkit.configuration.file.YamlConfiguration;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
-
 /**
- * config.yml 讀取與自動更新。
- * 插件內建的 config.yml 的 config-version 比玩家的新時：
- * 以新版預設檔為底（保留新版註解），把玩家原本的值填回去，舊檔備份成 config.yml.bak。
+ * config.yml。啟動與重載時自動補上缺少的設定，原本的值保留。
+ * 所有讀取都有預設值，設定檔寫錯也不會出錯。
  */
 public final class PluginConfig {
 
-    private static final String VERSION_KEY = "config-version";
-
     private final CustomDisc plugin;
-    private YamlConfiguration yaml;
+    private YamlConfiguration yaml = new YamlConfiguration();
+    private int lastFilled;
 
     public PluginConfig(CustomDisc plugin) {
         this.plugin = plugin;
     }
 
     public void load() {
-        File file = new File(plugin.getDataFolder(), "config.yml");
-        if (!file.exists()) {
-            plugin.saveResource("config.yml", false);
-        }
-
-        YamlConfiguration defaults = loadDefaults();
-        YamlConfiguration user = YamlConfiguration.loadConfiguration(file);
-
-        int defaultVersion = defaults.getInt(VERSION_KEY, 1);
-        int userVersion = user.getInt(VERSION_KEY, 0);
-        if (userVersion < defaultVersion) {
-            migrate(file, defaults, user, userVersion, defaultVersion);
-            user = YamlConfiguration.loadConfiguration(file);
-        }
-
-        user.setDefaults(defaults);
-        this.yaml = user;
+        YamlFiles.Loaded loaded = YamlFiles.load(plugin, "config.yml", PluginConfig::migrate,
+                (file, reason) -> plugin.getLogger().warning("config.yml: " + reason));
+        yaml = loaded.yaml();
+        lastFilled = loaded.filled();
+        migrateOldDefaults();
     }
 
-    private YamlConfiguration loadDefaults() {
-        try (InputStream in = plugin.getResource("config.yml")) {
-            if (in == null) {
-                return new YamlConfiguration();
-            }
-            return YamlConfiguration.loadConfiguration(new InputStreamReader(in, StandardCharsets.UTF_8));
-        } catch (IOException e) {
-            return new YamlConfiguration();
-        }
-    }
+    /** 1.1.0 以前的預設值（寫死的網址、和 PMonitor 衝突的 52011 端口）。 */
+    private static final String OLD_URL = "http://pg.yucl.qzz.io:52011";
 
-    private void migrate(File file, YamlConfiguration defaults, YamlConfiguration user, int from, int to) {
+    /**
+     * 使用者沒改過的舊預設值換成新的：public-url → auto，同時 port 52011 → 52012。
+     * 直接改文字，保留檔案裡的註解。
+     */
+    private void migrateOldDefaults() {
+        if (!OLD_URL.equals(yaml.getString("resource-pack.public-url"))) {
+            return;
+        }
+        java.io.File file = new java.io.File(plugin.getDataFolder(), "config.yml");
         try {
-            Files.copy(file.toPath(), new File(file.getParentFile(), "config.yml.bak").toPath(),
-                    StandardCopyOption.REPLACE_EXISTING);
-            YamlConfiguration merged = loadDefaults();
-            for (String key : defaults.getKeys(true)) {
-                if (key.equals(VERSION_KEY) || defaults.isConfigurationSection(key)) {
-                    continue;
-                }
-                if (user.contains(key) && !user.isConfigurationSection(key)) {
-                    merged.set(key, user.get(key));
-                }
+            String text = java.nio.file.Files.readString(file.toPath(), java.nio.charset.StandardCharsets.UTF_8);
+            text = text.replace("public-url: \"" + OLD_URL + "\"", "public-url: \"auto\"")
+                    .replace("public-url: '" + OLD_URL + "'", "public-url: 'auto'");
+            if (yaml.getInt("resource-pack.port") == 52011) {
+                text = text.replaceFirst("(?m)^(\\s*port:\\s*)52011\\s*$", "$152012");
             }
-            merged.set(VERSION_KEY, to);
-            merged.save(file);
-            plugin.getLogger().info("config.yml 已從第 " + from + " 版更新到第 " + to + " 版，原本的設定已保留（舊檔備份為 config.yml.bak）");
-        } catch (IOException e) {
-            plugin.getLogger().warning("config.yml 自動更新失敗：" + e.getMessage());
+            java.nio.file.Files.writeString(file.toPath(), text, java.nio.charset.StandardCharsets.UTF_8);
+            yaml = YamlFiles.load(plugin, "config.yml", null, (f, r) -> { }).yaml();
+            migrated = true;
+        } catch (java.io.IOException e) {
+            plugin.getLogger().warning("config.yml: " + e.getMessage());
         }
+    }
+
+    private boolean migrated;
+
+    /** 這次載入時是否換掉了舊預設值（給後台訊息用）。 */
+    public boolean migratedDefaults() {
+        boolean m = migrated;
+        migrated = false;
+        return m;
+    }
+
+    /** 1.0.x 的 update-checker.enabled 改名成 check-on-startup。 */
+    private static void migrate(YamlConfiguration user, YamlConfiguration merged) {
+        if (user.contains("update-checker.enabled") && !user.contains("update-checker.check-on-startup")) {
+            merged.set("update-checker.check-on-startup", user.getBoolean("update-checker.enabled", true));
+        }
+    }
+
+    public int lastFilled() {
+        return lastFilled;
     }
 
     public String prefix() {
@@ -84,7 +77,11 @@ public final class PluginConfig {
     }
 
     public boolean updateCheckOnStartup() {
-        return yaml.getBoolean("update-checker.enabled", true);
+        return yaml.getBoolean("update-checker.check-on-startup", true);
+    }
+
+    public boolean updateNotifyOnJoin() {
+        return yaml.getBoolean("update-checker.notify-on-join", true);
     }
 
     public String packHost() {
@@ -92,27 +89,29 @@ public final class PluginConfig {
     }
 
     public int packPort() {
-        return yaml.getInt("resource-pack.port", 52011);
+        return clamp(yaml.getInt("resource-pack.port", 52012), 1, 65535);
     }
 
+    /** 玩家下載網址；回傳 null 代表 auto（用玩家連線時的位址）。 */
     public String packPublicUrl() {
-        String url = yaml.getString("resource-pack.public-url", "http://127.0.0.1:52011");
+        String url = yaml.getString("resource-pack.public-url", "auto");
+        if (url == null || url.isBlank() || url.trim().equalsIgnoreCase("auto")) {
+            return null;
+        }
+        url = url.trim();
         while (url.endsWith("/")) {
             url = url.substring(0, url.length() - 1);
         }
         return url;
     }
 
+    /** 有裝 HttpHub 時是否改由它提供下載。 */
+    public boolean useHttpHub() {
+        return yaml.getBoolean("resource-pack.use-httphub", true);
+    }
+
     public boolean packRequired() {
         return yaml.getBoolean("resource-pack.required", true);
-    }
-
-    public String packPrompt() {
-        return yaml.getString("resource-pack.prompt", "");
-    }
-
-    public String packKickMessage() {
-        return yaml.getString("resource-pack.kick-message", "&c必須接受唱片資源包才能進入伺服器");
     }
 
     public boolean bedrockEnabled() {
@@ -124,7 +123,7 @@ public final class PluginConfig {
     }
 
     public int chatTimeoutSeconds() {
-        return Math.max(5, yaml.getInt("chat-input.timeout", 60));
+        return clamp(yaml.getInt("chat-input.timeout", 60), 5, 600);
     }
 
     public String cancelWord() {
