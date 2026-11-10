@@ -29,6 +29,18 @@ import java.util.concurrent.CompletableFuture;
 public final class PackService implements Listener {
 
     /** 固定的資源包 ID，和 server.properties 的資源包分開，更新時會取代舊的。 */
+    /** Java 版客戶端可下載的資源包上限約 250 MB，接近時在後台警告。 */
+    private static final int JAVA_PACK_LIMIT_MB = 250;
+    private static final long JAVA_PACK_WARN_BYTES = 240L * 1024 * 1024;
+    /** 一次推送給幾位玩家、間隔幾 tick（避免大家同時下載把下載伺服器塞滿）。 */
+    private static final int PUSH_BATCH = 4;
+    private static final long PUSH_INTERVAL = 20L;
+    /** 下載失敗時最多重試幾次。 */
+    private static final int MAX_RETRIES = 3;
+
+    /** 下載失敗的重試次數（玩家 UUID）。 */
+    private final Map<UUID, Integer> retries = new java.util.HashMap<>();
+
     public static final UUID PACK_ID = UUID.nameUUIDFromBytes("customdisc:java-pack".getBytes(StandardCharsets.UTF_8));
 
     private final CustomDisc plugin;
@@ -172,6 +184,10 @@ public final class PackService implements Listener {
                 Map<CustomSound, SoundLibrary.Entry> resolved = PackBuilder.resolve(sounds, library, warnings::add);
 
                 PackBuilder.Built java = PackBuilder.buildJava(library.entries(), resolved, warnings::add);
+                if (java.bytes().length > JAVA_PACK_WARN_BYTES) {
+                    warnings.add(plugin.messages().console("pack-too-large",
+                            "size", java.bytes().length / 1024 / 1024, "limit", JAVA_PACK_LIMIT_MB));
+                }
                 PackBuilder.Built old = javaPack;
                 boolean changed = old == null || !old.sha1Hex().equals(java.sha1Hex());
                 if (changed) {
@@ -213,9 +229,7 @@ public final class PackService implements Listener {
                         plugin.bedrock().setPack(finalMcpack.toPath());
                     }
                     if (changed && push && old != null) {
-                        for (Player p : Bukkit.getOnlinePlayers()) {
-                            send(p);
-                        }
+                        pushAll();
                     }
                     result.complete(changed);
                 });
@@ -312,6 +326,24 @@ public final class PackService implements Listener {
         return null;
     }
 
+    /** 資源包內容更新後分批推送給線上玩家。 */
+    private void pushAll() {
+        List<UUID> ids = new ArrayList<>();
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            ids.add(p.getUniqueId());
+        }
+        for (int i = 0; i < ids.size(); i++) {
+            UUID id = ids.get(i);
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                Player p = Bukkit.getPlayer(id);
+                if (p != null) {
+                    retries.remove(id);
+                    send(p);
+                }
+            }, (i / PUSH_BATCH) * PUSH_INTERVAL);
+        }
+    }
+
     /** 送資源包給一位玩家（基岩版玩家略過，他們由 Geyser 處理）。 */
     public void send(Player player) {
         PackBuilder.Built pack = javaPack;
@@ -324,6 +356,7 @@ public final class PackService implements Listener {
                     "player", player.getName()));
             return;
         }
+        plugin.jukebox().packSent(player);
         player.addResourcePack(PACK_ID, url, pack.sha1(),
                 Text.legacySection(plugin.messages().get("pack.prompt")), plugin.config().packRequired());
     }
@@ -340,6 +373,30 @@ public final class PackService implements Listener {
         }, 10L);
     }
 
+    /** 下載失敗時稍後重送（5、10、15 秒後），不然客戶端會少了整個資源包、聽不到所有自訂聲音。 */
+    private void retry(Player player) {
+        UUID id = player.getUniqueId();
+        int n = retries.merge(id, 1, Integer::sum);
+        if (n > MAX_RETRIES) {
+            retries.remove(id);
+            plugin.getLogger().warning(plugin.messages().console("pack-retry-gave-up", "player", player.getName()));
+            return;
+        }
+        plugin.getLogger().info(plugin.messages().console("pack-retry", "player", player.getName(), "count", n,
+                "max", MAX_RETRIES));
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            Player p = Bukkit.getPlayer(id);
+            if (p != null) {
+                send(p);
+            }
+        }, 100L * n);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onQuit(org.bukkit.event.player.PlayerQuitEvent event) {
+        retries.remove(event.getPlayer().getUniqueId());
+    }
+
     @EventHandler
     public void onStatus(PlayerResourcePackStatusEvent event) {
         if (!PACK_ID.equals(event.getID())) {
@@ -352,8 +409,15 @@ public final class PackService implements Listener {
                     player.kick(plugin.messages().component("pack.kick"));
                 }
             }
-            case FAILED_DOWNLOAD, INVALID_URL -> plugin.getLogger().warning(plugin.messages().console(
-                    "pack-download-failed", "player", player.getName(), "status", event.getStatus(), "url", url(player)));
+            case SUCCESSFULLY_LOADED -> {
+                retries.remove(player.getUniqueId());
+                plugin.jukebox().packReady(player);
+            }
+            case FAILED_DOWNLOAD, INVALID_URL -> {
+                plugin.getLogger().warning(plugin.messages().console(
+                        "pack-download-failed", "player", player.getName(), "status", event.getStatus(), "url", url(player)));
+                retry(player);
+            }
             default -> {
             }
         }

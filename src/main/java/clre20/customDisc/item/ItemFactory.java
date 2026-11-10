@@ -90,7 +90,8 @@ public final class ItemFactory {
         if (s == null) {
             return "x";
         }
-        return s.revision() + ":" + (plugin.datapack().isNative(s) ? "n" : "p");
+        // p2：1.3.1 起插件播放模式的號角不帶樂器，舊物品要更新
+        return s.revision() + ":" + (plugin.datapack().isNative(s) ? "n" : "p2");
     }
 
     private void apply(ItemStack item, CustomSound s) {
@@ -121,7 +122,10 @@ public final class ItemFactory {
             if (nativeMode) {
                 instrument = Registry.INSTRUMENT.get(DatapackService.key(s));
             }
-            horn.setInstrument(instrument != null ? instrument : Vanilla.instrument(s.appearance()));
+            // 插件播放模式不帶樂器：客戶端按下去時會依物品上的樂器自己先播一次聲音，
+            // 帶原版樂器的話吹的人會聽到原版號角聲。沒有樂器的山羊角客戶端不會播任何聲音，
+            // 只聽得到插件送的自訂聲音。（原生模式的樂器就是自訂聲音，照常保留）
+            horn.setInstrument(nativeMode ? (instrument != null ? instrument : Vanilla.instrument(s.appearance())) : null);
         }
 
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
