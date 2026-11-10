@@ -1,6 +1,6 @@
 # CustomDisc
 
-CustomDisc是一款專為 Paper伺服器設計的自訂唱片與號角插件。外觀沿用原版唱片與山羊角，音樂換成你自己的 .ogg 音檔，原版的音樂完全不受影響。全程使用箱子介面建立與編輯，插件會自動產生資源包並由內建的 HTTP 伺服器發送給玩家，也支援透過 Geyser 讓基岩版玩家聽到自訂音樂。
+CustomDisc（簡稱 C-Disc）是一款專為 Paper（Minecraft 1.21.x、26.x）伺服器設計的自訂唱片與號角插件。外觀沿用原版唱片與山羊角，音樂換成你自己的 .ogg 音檔，原版的音樂完全不受影響。全程使用箱子介面建立與編輯，插件會自動產生資源包並由內建的 HTTP 伺服器發送給玩家，也支援透過 Geyser 讓基岩版玩家聽到自訂音樂。
 
 ## 功能特性
 
@@ -15,10 +15,12 @@ CustomDisc是一款專為 Paper伺服器設計的自訂唱片與號角插件。�
 * **原生模式**：
   * 插件把自訂唱片與號角寫成資料包，伺服器下次啟動時註冊為真正的原版唱片與樂器，比較器、漏斗都照原版運作。
   * 剛建立、還沒重啟的唱片由插件自己播放，建立後立刻能用。
+  * 插件播放的唱片會補播：玩家斷線重進、資源包重新載入完成或走進範圍時，會自動聽到正在播放的唱片（從頭開始）。
   * 比較器訊號強度預設沿用外觀唱片的原版數值，也可以自訂 0–15。
 * **獨立資源包**：
   * 插件自行打包資源包並用內建 HTTP 伺服器發送，與 `server.properties` 的資源包分開，兩者同時套用。
   * 可設定強制下載，拒絕下載即踢出伺服器；內容沒變時玩家不需重新下載。
+  * 新增音樂後分批推送給線上玩家，下載失敗會自動重試；資源包接近 Java 版約 250 MB 的上限時，後台會提醒。
   * 有安裝 [HttpHub](https://github.com/clre20/HttpHub) 時，改由 HttpHub 提供下載，和其他插件共用同一個端口，CustomDisc 不再另外開端口。
 * **號角與冷卻**：
   * 冷卻照原版：吹任何一支號角後，玩家身上所有山羊角（含原版）一起冷卻。
@@ -103,7 +105,7 @@ cd give disc my_song Steve 5
 
 # CustomDisc
 
-CustomDiscis a custom music disc and goat horn plugin designed for Paper servers. Custom items reuse the look of vanilla music discs and goat horns but play your own .ogg files, while vanilla music stays completely untouched. Everything is created and edited through chest GUIs, the plugin builds the resource pack automatically and serves it from a built-in HTTP server, and Bedrock players can hear the custom music too through Geyser.
+CustomDisc (C-Disc) is a custom music disc and goat horn plugin designed for Paper (Minecraft 1.21.x and 26.x) servers. Custom items reuse the look of vanilla music discs and goat horns but play your own .ogg files, while vanilla music stays completely untouched. Everything is created and edited through chest GUIs, the plugin builds the resource pack automatically and serves it from a built-in HTTP server, and Bedrock players can hear the custom music too through Geyser.
 
 ## Features
 
@@ -118,10 +120,12 @@ CustomDiscis a custom music disc and goat horn plugin designed for Paper servers
 * **Native Mode**:
   * Custom discs and horns are written into a data pack and registered as real vanilla jukebox songs and instruments on the next server start, so comparators and hoppers behave exactly like vanilla.
   * Newly created discs are played by the plugin until the next restart, so they work immediately.
+  * Plugin-played discs catch up: players who rejoin, finish reloading the resource pack, or walk into range automatically hear the disc that is playing (from the start).
   * The comparator signal defaults to the vanilla value of the chosen disc look and can be set from 0 to 15.
 * **Separate Resource Pack**:
   * The plugin builds its own resource pack and serves it from a built-in HTTP server, separate from the pack in `server.properties`; both are applied together.
   * Optionally required (players who decline are kicked); players don't re-download when the content hasn't changed.
+  * After adding music, the pack is pushed to online players in batches and failed downloads are retried automatically; the console warns when the pack nears the Java client limit of about 250 MB.
   * When [HttpHub](https://github.com/clre20/HttpHub) is installed, the pack is served through HttpHub and shares its single port with other plugins; CustomDisc opens no port of its own.
 * **Goat Horns & Cooldowns**:
   * Vanilla-style cooldown: after blowing any horn, every goat horn the player holds (including vanilla ones) goes on cooldown.

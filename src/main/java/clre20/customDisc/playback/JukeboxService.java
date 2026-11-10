@@ -25,7 +25,10 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.inventory.InventoryMoveItemEvent;
 import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
@@ -37,6 +40,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * 唱片機播放。
@@ -50,16 +54,27 @@ public final class JukeboxService implements Listener {
     /** 唱片機放唱片時原版用的音量（影響可聽範圍）。 */
     private static final float JUKEBOX_VOLUME = 4.0f;
 
+    /** 補播時剩不到這麼多毫秒就不補（快播完了）。 */
+    private static final long MIN_REMAINING_MILLIS = 3000L;
+    /** 資源包送出後最久等多久就當作已載入（有些客戶端不回報狀態）。 */
+    private static final long READY_FALLBACK_TICKS = 20L * 60;
+
     private static final class Session {
         final BlockKey key;
         final Track track;
         final Location at;
+        final long endAt;
+        /** 已經送出聲音的玩家。 */
+        final Set<UUID> listeners = new HashSet<>();
+        /** 中途補播的玩家（從頭開始播，所以結束時要幫他們停掉）。 */
+        final Set<UUID> late = new HashSet<>();
         BukkitTask endTask;
 
         Session(BlockKey key, Track track, Location at) {
             this.key = key;
             this.track = track;
             this.at = at;
+            this.endAt = System.currentTimeMillis() + track.ticks() * 50L;
         }
     }
 
@@ -68,6 +83,11 @@ public final class JukeboxService implements Listener {
     /** 原生模式、開了循環的唱片機。 */
     private final Set<BlockKey> nativeLoops = new HashSet<>();
     private BukkitTask watchTask;
+    /**
+     * 自訂音效可以播放的玩家：Java 版資源包載入完成、基岩版已進服。
+     * 斷線、資源包重新載入時客戶端會清掉所有聲音，載入完成後由 watch 補播正在播放的唱片。
+     */
+    private final Set<UUID> ready = new HashSet<>();
     /** watch 每 0.5 秒一次，音符每隔一次（1 秒）產生。 */
     private boolean particleTick;
 
@@ -76,6 +96,10 @@ public final class JukeboxService implements Listener {
     }
 
     public void start() {
+        // 插件啟動（或重載）時已經在線上的玩家，資源包早就載好了
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            ready.add(p.getUniqueId());
+        }
         watchTask = Bukkit.getScheduler().runTaskTimer(plugin, this::watch, 10L, 10L);
     }
 
@@ -88,6 +112,65 @@ public final class JukeboxService implements Listener {
         }
         sessions.clear();
         nativeLoops.clear();
+        ready.clear();
+    }
+
+    // ------------------------------------------------------------ 玩家能不能聽到自訂聲音
+
+    /** 送出資源包時呼叫：客戶端會重新載入，所有聲音都會被清掉。 */
+    public void packSent(Player player) {
+        UUID id = player.getUniqueId();
+        ready.remove(id);
+        forget(id);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            Player p = Bukkit.getPlayer(id);
+            if (p != null) {
+                ready.add(id); // 客戶端沒有回報狀態時的備援
+            }
+        }, READY_FALLBACK_TICKS);
+    }
+
+    /** 資源包載入完成（或基岩版玩家進服）：之後由 watch 補播。 */
+    public void packReady(Player player) {
+        UUID id = player.getUniqueId();
+        ready.add(id);
+        forget(id);
+    }
+
+    /** 從所有播放中的唱片移除這位玩家，下次 watch 會重新送聲音給他。 */
+    private void forget(UUID id) {
+        for (Session s : sessions.values()) {
+            s.listeners.remove(id);
+            s.late.remove(id);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        UUID id = player.getUniqueId();
+        // 基岩版的資源包在登入時由 Geyser 送完，進服後稍等一下就能播；
+        // Java 版等資源包載入完成，沒送出資源包時（例如還在打包）一分鐘後當作可以播
+        long delay = plugin.bedrock().isBedrock(player) ? 40L : READY_FALLBACK_TICKS;
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            Player p = Bukkit.getPlayer(id);
+            if (p != null && !ready.contains(id)) {
+                packReady(p);
+            }
+        }, delay);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onQuit(PlayerQuitEvent event) {
+        UUID id = event.getPlayer().getUniqueId();
+        ready.remove(id);
+        forget(id);
+    }
+
+    /** 換世界時客戶端會清掉聲音。 */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onWorldChange(PlayerChangedWorldEvent event) {
+        forget(event.getPlayer().getUniqueId());
     }
 
     public boolean hasSession(Block block) {
@@ -310,8 +393,9 @@ public final class JukeboxService implements Listener {
 
         double max = track.range() + 8;
         for (Player p : block.getWorld().getPlayers()) {
-            if (p.getLocation().distanceSquared(at) <= max * max) {
+            if (ready.contains(p.getUniqueId()) && p.getLocation().distanceSquared(at) <= max * max) {
                 p.playSound(at, track.soundKey(), SoundCategory.RECORDS, JUKEBOX_VOLUME, 1.0f);
+                session.listeners.add(p.getUniqueId());
                 if (p.getLocation().distanceSquared(at) <= 64 * 64) {
                     p.sendActionBar(track.title());
                 }
@@ -325,6 +409,13 @@ public final class JukeboxService implements Listener {
             return;
         }
         sessions.remove(session.key);
+        // 中途補播的玩家是從頭開始聽的，到這裡幫他們停掉，避免和下一輪重疊
+        for (UUID id : session.late) {
+            Player p = Bukkit.getPlayer(id);
+            if (p != null) {
+                p.stopSound(session.track.soundKey(), SoundCategory.RECORDS);
+            }
+        }
         Block block = session.key.block();
         if (block == null || block.getType() != Material.JUKEBOX) {
             return;
@@ -356,8 +447,24 @@ public final class JukeboxService implements Listener {
         }
         double max = s.track.range() + 16;
         for (Player p : world.getPlayers()) {
-            if (p.getLocation().distanceSquared(s.at) <= max * max) {
+            if (s.listeners.contains(p.getUniqueId()) || p.getLocation().distanceSquared(s.at) <= max * max) {
                 p.stopSound(s.track.soundKey(), SoundCategory.RECORDS);
+            }
+        }
+    }
+
+    /** 補播：範圍內還沒收到聲音的玩家（重進、資源包重新載入、剛走進範圍）從頭開始播。 */
+    private void catchUp(Session s, Block block) {
+        if (s.endAt - System.currentTimeMillis() < MIN_REMAINING_MILLIS) {
+            return;
+        }
+        double max = s.track.range() + 8;
+        for (Player p : block.getWorld().getPlayers()) {
+            UUID id = p.getUniqueId();
+            if (!s.listeners.contains(id) && ready.contains(id) && p.getLocation().distanceSquared(s.at) <= max * max) {
+                p.playSound(s.at, s.track.soundKey(), SoundCategory.RECORDS, JUKEBOX_VOLUME, 1.0f);
+                s.listeners.add(id);
+                s.late.add(id);
             }
         }
     }
@@ -389,7 +496,7 @@ public final class JukeboxService implements Listener {
         }
     }
 
-    /** 每 0.5 秒檢查：唱片被拿走、唱片機被破壞就停止；原生模式循環播放。沒有任何播放時直接跳過。 */
+    /** 每 0.5 秒檢查：唱片被拿走、唱片機被破壞就停止；補播給還沒聽到的玩家；原生模式循環播放。沒有任何播放時直接跳過。 */
     private void watch() {
         if (sessions.isEmpty() && nativeLoops.isEmpty()) {
             return;
@@ -410,6 +517,7 @@ public final class JukeboxService implements Listener {
                 toStop.add(s.key);
                 continue;
             }
+            catchUp(s, block);
             if (particleTick) {
                 particles(block);
             }
