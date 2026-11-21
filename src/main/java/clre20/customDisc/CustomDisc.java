@@ -101,7 +101,11 @@ public final class CustomDisc extends JavaPlugin {
         if (datapackChanged) {
             getLogger().info(messages.console("datapack-changed", "path", datapack.folder().getPath()));
         }
-        updateNotifier.checkOnStartup();
+        if (getServer().getPluginManager().isPluginEnabled("HttpHub") && clre20.httpHub.api.HttpHubAPI.isAvailable()) {
+            clre20.httpHub.api.HttpHubAPI.registerUpdateCheck(this, "clre20/CustomDisc", getPluginMeta().getVersion(), "customdisc.version", null);
+        } else {
+            updateNotifier.checkOnStartup();
+        }
     }
 
     @Override

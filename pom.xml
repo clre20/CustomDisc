@@ -17,7 +17,7 @@
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- 編譯用的 Paper API：1.21 = 最低支援版本，新版功能在執行時偵測 -->
-        <paper.version>1.21-R0.1-SNAPSHOT</paper.version>
+        <paper.version>26.3.build.249-stable</paper.version>
     </properties>
 
     <build>
@@ -82,9 +82,9 @@
         </dependency>
         <!-- 共用 HTTP 端口（伺服器沒裝時改用內建的 HTTP 伺服器） -->
         <dependency>
-            <groupId>com.github.clre20</groupId>
+            <groupId>clre20</groupId>
             <artifactId>HttpHub</artifactId>
-            <version>v1.0.0</version>
+            <version>1.0.1</version>
             <scope>provided</scope>
         </dependency>
         <!-- 基岩版整合（伺服器沒裝時自動停用） -->
